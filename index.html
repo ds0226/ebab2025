@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Two-Person Chat</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="user-select-bar">
+    <label for="user-selector">Chatting as:</label>
+    <select id="user-selector">
+        <option value="x">x</option>
+        <option value="i">i</option>
+    </select>
+</div>   
+ <div id="chat-container">
+        <div id="messages"></div>
+
+        <form id="form">
+            <input id="input" autocomplete="off" placeholder="Type a message..." />
+            <button>Send</button>
+        </form>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+</body>
+</html>

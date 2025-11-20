@@ -1,0 +1,59 @@
+body { margin: 0; padding: 0; font-family: sans-serif; background: #f0f0f0; }
+#chat-container {
+    max-width: 600px;
+    height: 100vh;
+    margin: 0 auto;
+    background: white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+}
+#messages {
+    list-style-type: none;
+    margin: 0;
+    padding: 10px;
+    flex-grow: 1; /* Allows the messages area to take up all available space */
+    overflow-y: scroll;
+    display: flex;
+    flex-direction: column; /* Needed for align-self to work correctly */
+}
+.message-bubble {
+    padding: 8px 12px;
+    border-radius: 18px;
+    margin-bottom: 8px;
+    max-width: 80%;
+    word-wrap: break-word;
+    font-size: 14px;
+}
+/* Style for messages sent by the current user (e.g., green/blue, right-aligned) */
+.my-message {
+    background-color: #DCF8C6; /* WhatsApp light green */
+    align-self: flex-end;
+    margin-left: auto;
+}
+/* Style for messages from the other person (e.g., gray/white, left-aligned) */
+.their-message {
+    background-color: #FFFFFF;
+    border: 1px solid #EEEEEE;
+    align-self: flex-start;
+}
+#form {
+    background: #eee;
+    padding: 10px;
+    display: flex;
+}
+#input {
+    flex-grow: 1;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 20px;
+    margin-right: 10px;
+}
+button {
+    background: #075E54; /* WhatsApp primary color */
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+}
