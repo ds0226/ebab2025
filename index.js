@@ -9,7 +9,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 
 // Use environment variable MONGO_URI for deployment security, fallback to hardcoded for local testing
-const uri = process.env.MONGO_URI || "mongodb+srv://david26:davien11@clustername.xxxxx.mongodb.net/two_person_chat_db?retryWrites=true&w=majority";
+const uri = process.env.MONGO_URI || "mongodb+srv://david26:davien11@ebab.w90ig5m.mongodb.net/?appName=EBAB/two_person_chat_db?retryWrites=true&w=majority";
 
 
 mongoose.connect(uri)
