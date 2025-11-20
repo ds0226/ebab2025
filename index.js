@@ -4,12 +4,22 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const path = require('path');
-const RENDER_LIVE_URL = 'https://ebab2025.onrender.com';
-const socketUrl = (window.location.hostname === 'localhost') ? undefined : RENDER_LIVE_URL;
-const socket = io(socketUrl, {
-    transports: ['websocket'] // <--- This line forces a stable connection on Render
-});
 
+// --- Code Block for client.js ---
+
+// 1. CRITICAL: Replace the placeholder with your actual live Render URL.
+const RENDER_LIVE_URL = 'https://ebab2025.onrender.com'; 
+
+// Check if we are running locally or live (window is available here)
+const socketUrl = (window.location.hostname === 'localhost') ? undefined : RENDER_LIVE_URL;
+
+// Establish the Socket.IO connection, forcing 'websocket' for stability on cloud hosts
+const socket = io(socketUrl, {
+    transports: ['websocket'] 
+}); 
+
+// Get DOM elements (continues below this block)
+const form = document.getElementById('form');
 
 // --- MongoDB and Mongoose Integration ---
 const mongoose = require('mongoose');
