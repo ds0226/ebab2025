@@ -40,6 +40,24 @@ socket.on('chat message', function(msgData) {
     }
 });
 
+// --- Find and replace the io initialization line ---
+
+const { Server } = require("socket.io");
+
+// 1. Get the external URL from Render's environment variable
+//    This allows the client (browser) to connect securely.
+const externalUrl = process.env.RENDER_EXTERNAL_URL; 
+
+const io = new Server(server, {
+    cors: {
+        // Set the origin to allow connections from your deployed URL
+        origin: externalUrl || "http://localhost:3000",
+        methods: ["GET", "POST"]
+    }
+});
+
+const RENDER_LIVE_URL = 'https://ebab2025.onrender.com/'; // <--- PASTE YOUR REAL URL HERE
+
 
 // Helper function to create and append the message bubble
 function addMessage(text, className) {

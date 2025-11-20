@@ -54,7 +54,20 @@ io.on('connection', (socket) => {
 });
 // ---------------------------------
 
+
 const PORT = 3000;
 server.listen(PORT, () => {
   console.log(`Listening on http://localhost:${PORT}`);
+});
+
+// --- Replace the existing PORT and server.listen code ---
+
+// Use the environment variable PORT provided by Render, or fall back to 3000 locally
+const PORT = process.env.PORT || 3000;
+// Set the host to 0.0.0.0 for compatibility with Render's network configuration
+const HOST = '0.0.0.0'; 
+
+server.listen(PORT, HOST, () => { // <--- Changed the listen function parameters
+  console.log(`Server running at http://${HOST}:${PORT}`);
+  console.log(`Live app URL: ${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}`);
 });
