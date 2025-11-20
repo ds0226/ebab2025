@@ -4,6 +4,12 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const path = require('path');
+const RENDER_LIVE_URL = 'https://ebab2025.onrender.com';
+const socketUrl = (window.location.hostname === 'localhost') ? undefined : RENDER_LIVE_URL;
+const socket = io(socketUrl, {
+    transports: ['websocket'] // <--- This line forces a stable connection on Render
+});
+
 
 // --- MongoDB and Mongoose Integration ---
 const mongoose = require('mongoose');
