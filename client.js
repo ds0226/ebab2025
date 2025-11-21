@@ -259,7 +259,7 @@ socket.on('user taken', function(data) {
 
 
 socket.on('connect', () => {
-    // CRITICAL: Re-establish user identity after a soft connection break
+    // CRITICAL: Re-establish user identity after a soft connection break (The primary fix)
     if (MY_USER_ID !== null) {
         requestUserId(MY_USER_ID); 
     }
@@ -400,6 +400,8 @@ function setupLongPressHandler(element, messageId) {
 // --- REAL-TIME SEND/RECEIVE & STATUS UPDATE LOGIC ---
 // ----------------------------------------------------------------------
 
+// This listener handles both clicking the Send button (which is now type="button") 
+// and pressing the Enter key inside the input field.
 form.addEventListener('submit', function(e) {
     e.preventDefault();
     if (input.value && !form.querySelector('#send-button').disabled) {

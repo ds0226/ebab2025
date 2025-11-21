@@ -26,8 +26,16 @@
     <div id="messages"></div>
 
     <form id="form">
+        <input type="file" id="file-input" accept="image/*,video/*" style="display: none;">
+        
+        <button id="photo-button" type="button">
+             <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M20 5h-3.17L15 3H9L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-8 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-2c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
+            </svg>
+        </button>
+        
         <input id="input" autocomplete="off" placeholder="Type a message..." />
-        <button id="send-button" type="submit">
+        <button id="send-button" type="button"> 
             <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
     </form>
