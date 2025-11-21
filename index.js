@@ -13,7 +13,7 @@ const mongoose = require('mongoose');
 // NOTE: I'm leaving your connection string as the hardcoded fallback for local testing, 
 // but you should use the environment variable on Render for security.
 
-const uri = process.env.MONGO_URI || "mongodb+srv://david26:davien11@ebab.w90ig5m.mongodb.net/two_person_chat_db?appName=EBAB";
+const uri = process.env.MONGO_URI || "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/two_person_chat_db?appName=EBAB";
 
 // **Mongoose is the preferred method for connecting**
 mongoose.connect(uri)
