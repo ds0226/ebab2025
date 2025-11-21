@@ -9,7 +9,8 @@ const path = require('path');
 // --- MongoDB and Mongoose Integration ---
 const mongoose = require('mongoose');
 
-// Using environment variable MONGO_URI
+// Use environment variable MONGO_URI for deployment security, fallback to hardcoded for local testing.
+
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const uri = "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
 
@@ -36,6 +37,7 @@ async function run() {
 }
 run().catch(console.dir);
 
+
 // **Mongoose is the preferred method for connecting**
 mongoose.connect(uri)
   .then(() => console.log('Successfully connected to MongoDB Atlas!'))
@@ -46,13 +48,7 @@ mongoose.connect(uri)
 const MessageSchema = new mongoose.Schema({
     sender: { type: String, required: true },
     text: { type: String, required: true },
-    timestamp: { type: Date, default: Date.now },
-    // 💥 NEW: Add message status
-    status: { 
-        type: String, 
-        enum: ['sent', 'delivered', 'read'],
-        default: 'sent' 
-    }
+    timestamp: { type: Date, default: Date.now }
 });
 
 const Message = mongoose.model('Message', MessageSchema);
@@ -60,7 +56,6 @@ const Message = mongoose.model('Message', MessageSchema);
 
 // --- Socket.IO and CORS Configuration ---
 
-// Use environment variable RENDER_EXTERNAL_URL for CORS to allow the client connection
 const externalUrl = process.env.RENDER_EXTERNAL_URL; 
 
 const io = new Server(server, {
@@ -71,6 +66,24 @@ const io = new Server(server, {
 });
 // ----------------------------------------
 
+// 💥 Global state for exclusive lock and last seen
+const activeUsers = {}; // { 'x': <socket_id>, 'i': <socket_id> }
+const lastSeenTime = {}; // { 'x': <timestamp>, 'i': <timestamp> }
+const ALL_USERS = ['x', 'i'];
+
+// 💥 Helper to broadcast the combined online status
+const broadcastOnlineStatus = () => {
+    const statusMap = {};
+    for (const userId of ALL_USERS) { 
+        const isOnline = activeUsers.hasOwnProperty(userId);
+        statusMap[userId] = {
+            online: isOnline,
+            lastSeen: lastSeenTime[userId] || null
+        };
+    }
+    io.emit('online-status-update', statusMap);
+};
+
 
 // Tell Express to serve static files (like index.html, styles.css, client.js)
 app.use(express.static(__dirname));
@@ -80,28 +93,14 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// 💥 NEW: Helper function to update status and broadcast
-const updateMessageStatus = async (messageId, newStatus) => {
-    try {
-        const updatedMessage = await Message.findByIdAndUpdate(
-            messageId,
-            { status: newStatus },
-            { new: true } // Return the updated document
-        );
-        if (updatedMessage) {
-            // Broadcast the change to ALL clients
-            io.emit('message status update', updatedMessage);
-            console.log(`Message ${messageId} updated to status: ${newStatus}`);
-        }
-    } catch (error) {
-        console.error(`Error updating message status to ${newStatus}:`, error);
-    }
-};
-
 
 // --- SOCKET.IO REAL-TIME LOGIC ---
 io.on('connection', async (socket) => {
   console.log('A user connected');
+
+  // Send initial status updates
+  socket.emit('user-lock-status', activeUsers);
+  broadcastOnlineStatus();
 
   // Load History on connection
   try {
@@ -111,36 +110,87 @@ io.on('connection', async (socket) => {
     console.error("Error loading chat history:", error);
   }
 
+  // Handler for client requesting a user ID (exclusive lock)
+  socket.on('set user', (userId) => {
+    if (!ALL_USERS.includes(userId)) return;
+
+    if (activeUsers[userId] && activeUsers[userId] !== socket.id) {
+        socket.emit('user taken', { userId: userId });
+        return;
+    }
+
+    const previousUserId = socket.data.userId;
+    if (previousUserId && activeUsers[previousUserId] === socket.id) {
+        delete activeUsers[previousUserId];
+        lastSeenTime[previousUserId] = Date.now();
+    }
+
+    activeUsers[userId] = socket.id;
+    socket.data.userId = userId;
+    
+    io.emit('user-lock-status', activeUsers);
+    broadcastOnlineStatus();
+
+    console.log(`User ${userId} claimed by socket ${socket.id}.`);
+  });
+
+
   // Listen for 'chat message' event from any client
   socket.on('chat message', async (msgData) => {
+    if (!socket.data.userId || socket.data.userId !== msgData.sender) {
+        console.warn(`Message blocked: Sender ${msgData.sender} is not authorized or assigned.`);
+        return;
+    }
+    
     console.log(`Message from ${msgData.sender}: ${msgData.text}`);
     
-    // Save the new message to the database
     try {
-       // 💥 MODIFIED: Set initial status to 'sent'
-       const newMessage = new Message({ ...msgData, status: 'sent' }); 
+       const newMessage = new Message(msgData);
        const savedMessage = await newMessage.save();
-       // Broadcast the saved message (which now has a timestamp and _id from MongoDB)
        io.emit('chat message', savedMessage); 
     } catch (e) { 
         console.error("Error saving message:", e); 
     }
   });
   
-  // 💥 NEW: Listen for delivery confirmation from a client
-  socket.on('message delivered', (data) => {
-      // The receiving client has displayed the message.
-      updateMessageStatus(data.messageId, 'delivered');
+  // 💥 NEW: Handler for deleting a message
+  socket.on('delete message', async (data) => {
+    const { messageId, senderId } = data;
+    
+    // Authorization Check: Only allow deletion if the sender is 'x' and they are the one currently logged in as 'x'
+    if (senderId !== 'x' || socket.data.userId !== 'x') {
+        console.warn(`Deletion attempt blocked: User ${senderId} not authorized or not logged in as 'x'.`);
+        return;
+    }
+
+    try {
+        // Delete message by its MongoDB _id
+        const result = await Message.deleteOne({ _id: messageId });
+        
+        if (result.deletedCount > 0) {
+            console.log(`Message ${messageId} deleted by user 'x'.`);
+            // Broadcast the deletion to all clients
+            io.emit('message deleted', { messageId: messageId });
+        } else {
+            console.warn(`Attempted to delete non-existent message: ${messageId}`);
+        }
+    } catch (error) {
+        console.error("Error deleting message:", error);
+    }
   });
 
-  // 💥 NEW: Listen for read confirmation from a client
-  socket.on('message read', (data) => {
-      // The receiving client has likely brought the chat window into focus.
-      updateMessageStatus(data.messageId, 'read');
-  });
 
-
+  // Handle disconnect
   socket.on('disconnect', () => {
+    const userId = socket.data.userId; 
+    if (userId && activeUsers[userId] === socket.id) {
+        delete activeUsers[userId];
+        lastSeenTime[userId] = Date.now();
+        
+        io.emit('user-lock-status', activeUsers);
+        broadcastOnlineStatus();
+        console.log(`User ${userId} released on disconnect.`);
+    }
     console.log('User disconnected');
   });
 });
@@ -149,9 +199,7 @@ io.on('connection', async (socket) => {
 
 // --- Server Start Logic ---
 
-// Use the environment variable PORT provided by Render, or fall back to 3000 locally
 const PORT = process.env.PORT || 3000;
-// Set the host to 0.0.0.0 for compatibility with Render's network configuration
 const HOST = '0.0.0.0'; 
 
 server.listen(PORT, HOST, () => { 

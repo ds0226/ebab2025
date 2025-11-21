@@ -4,13 +4,9 @@
 // --- SOCKET.IO CONNECTION (FIXED FOR LIVE DEPLOYMENT) ---
 // ----------------------------------------------------------------------
 
-// 1. CRITICAL: Set your actual live Render URL.
 const RENDER_LIVE_URL = 'https://ebab2025.onrender.com'; 
-
-// Check if we are running locally or live (window is available here)
 const socketUrl = (window.location.hostname === 'localhost') ? undefined : RENDER_LIVE_URL;
 
-// Establish the Socket.IO connection
 const socket = io(socketUrl, {
     transports: ['websocket']
 }); 
@@ -19,63 +15,200 @@ const socket = io(socketUrl, {
 // --- USER & DOM ELEMENTS ---
 // ----------------------------------------------------------------------
 
-// Get DOM elements
 const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
-const userSelector = document.getElementById('user-selector'); 
+const userSelector = document.getElementById('user-selector');
+const otherUserStatusElement = document.getElementById('other-user-status');
+const ALL_USERS = ['x', 'i'];
 
 let MY_USER_ID = userSelector ? userSelector.value : 'x'; 
 console.log(`CURRENT CHAT USER ID: ${MY_USER_ID}`);
 
-if (userSelector) {
-    userSelector.addEventListener('change', function() {
-        MY_USER_ID = this.value;
-        console.log(`CURRENT CHAT USER ID changed to: ${MY_USER_ID}`);
-    });
-}
-
 
 // ----------------------------------------------------------------------
-// --- MESSAGE HELPER FUNCTION (Modified to include status) ---
+// --- MESSAGE HELPER FUNCTION (Modified for Delete Button) ---
 // ----------------------------------------------------------------------
 
 // Helper function to create and append the message bubble
-// 💥 MODIFIED: Accepts 'status'
-function addMessage(text, className, timestamp, status, messageId) { 
+// 💥 MODIFIED: Accepts messageId
+function addMessage(text, className, timestamp, messageId) { 
     const item = document.createElement('div');
     
-    // Format the timestamp if it's provided
     const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     
-    // 💥 NEW: Status logic
-    let statusIcon = '';
-    if (className === 'my-message' && status) {
-        if (status === 'read') {
-            statusIcon = '<span class="status-read">✓✓</span>'; // Double checkmark (styled blue in CSS)
-        } else if (status === 'delivered') {
-            statusIcon = '<span class="status-delivered">✓✓</span>'; // Double checkmark (styled gray in CSS)
-        } else {
-            statusIcon = '<span class="status-sent">✓</span>'; // Single checkmark (plain text or basic color)
-        }
+    let deleteButtonHTML = '';
+    
+    // 💥 NEW: Add delete button if the user is 'x' and the message has an ID
+    if (MY_USER_ID === 'x' && messageId) {
+        // Use a non-breaking space (&#xa0;) to ensure some spacing if time is short
+        deleteButtonHTML = `<button class="delete-btn" data-id="${messageId}">&#10060;</button>`; // ❌ emoji
     }
 
     item.innerHTML = `
         <span class="message-text">${text}</span>
-        <span class="message-time">${time} ${statusIcon}</span>
+        <span class="message-time">${time}</span>
+        ${deleteButtonHTML}
     `;
     
     item.classList.add('message-bubble', className);
     
-    // 💥 NEW: Add message ID to element for easy status updates
+    // Set data attribute for quick DOM lookups (especially for deletion)
     if (messageId) item.dataset.id = messageId;
     
     messages.appendChild(item);
     
-    // Auto-scroll to the bottom
+    // 💥 NEW: Attach event listener for the delete button
+    const deleteButton = item.querySelector('.delete-btn');
+    if (deleteButton) {
+        deleteButton.addEventListener('click', function() {
+            if (confirm("Are you sure you want to delete this message?")) {
+                const idToDelete = this.getAttribute('data-id');
+                // Emit the delete event with the message ID and the sender ID ('x')
+                socket.emit('delete message', { messageId: idToDelete, senderId: MY_USER_ID });
+            }
+        });
+    }
+
     messages.scrollTop = messages.scrollHeight;
-    
     return item;
+}
+
+
+// ----------------------------------------------------------------------
+// --- NEW USER ASSIGNMENT & STATUS LOGIC (PREVIOUSLY REQUESTED) ---
+// ----------------------------------------------------------------------
+
+function formatLastSeen(timestamp) {
+    if (!timestamp) return 'Offline';
+    const now = new Date();
+    const lastSeen = new Date(timestamp);
+    const diff = now - lastSeen;
+
+    if (diff < 60000) {
+        return 'Recently online';
+    } else if (diff < 3600000) {
+        const minutes = Math.floor(diff / 60000);
+        return `Last seen ${minutes} min ago`;
+    } else if (lastSeen.toDateString() === now.toDateString()) {
+        return `Last seen today at ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+        return `Last seen ${lastSeen.toLocaleDateString()} at ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+}
+
+function updateOtherUserStatus(statusMap) {
+    const otherUserId = ALL_USERS.find(user => user !== MY_USER_ID);
+    const otherUser = statusMap[otherUserId];
+
+    if (!otherUser) {
+        otherUserStatusElement.textContent = 'User unavailable';
+        otherUserStatusElement.className = 'status-offline';
+        return;
+    }
+
+    if (otherUser.online) {
+        otherUserStatusElement.textContent = 'Online';
+        otherUserStatusElement.className = 'status-online';
+    } else {
+        otherUserStatusElement.textContent = formatLastSeen(otherUser.lastSeen);
+        otherUserStatusElement.className = 'status-offline';
+    }
+}
+
+function requestUserId(userId) {
+    socket.emit('set user', userId);
+}
+
+if (userSelector) {
+    userSelector.addEventListener('change', function() {
+        const newUserId = this.value;
+        requestUserId(newUserId);
+    });
+}
+
+socket.on('online-status-update', function(statusMap) {
+    updateOtherUserStatus(statusMap);
+});
+
+
+socket.on('user-lock-status', function(activeUsersMap) {
+    let claimedByUser = false;
+    
+    Array.from(userSelector.options).forEach(option => {
+        const optionUserId = option.value;
+        const isTaken = activeUsersMap.hasOwnProperty(optionUserId);
+        
+        if (isTaken && activeUsersMap[optionUserId] !== socket.id) {
+            option.disabled = true;
+            option.textContent = `${optionUserId} (TAKEN)`;
+        } else {
+            option.disabled = false;
+            option.textContent = optionUserId;
+        }
+
+        if (optionUserId === userSelector.value && activeUsersMap[optionUserId] === socket.id) {
+            claimedByUser = true;
+        }
+    });
+
+    const sendButton = form.querySelector('button');
+    
+    if (!claimedByUser) {
+        const availableOption = Array.from(userSelector.options).find(opt => !opt.disabled);
+        
+        if (availableOption) {
+            userSelector.value = availableOption.value;
+            MY_USER_ID = availableOption.value;
+            requestUserId(MY_USER_ID);
+            sendButton.disabled = false; 
+            input.disabled = false;
+        } else {
+            sendButton.disabled = true;
+            input.disabled = true;
+        }
+    } else {
+        MY_USER_ID = userSelector.value;
+        sendButton.disabled = false;
+        input.disabled = false;
+    }
+    // Update delete button visibility immediately after MY_USER_ID changes
+    updateDeleteButtonsVisibility();
+});
+
+
+socket.on('user taken', function(data) {
+    alert(`User ID '${data.userId}' is currently being used by another user. Please select the other ID.`);
+    
+    const availableOption = Array.from(userSelector.options).find(opt => !opt.disabled);
+
+    if (availableOption) {
+        userSelector.value = availableOption.value; 
+        MY_USER_ID = availableOption.value;
+    }
+});
+
+
+socket.on('connect', () => {
+    requestUserId(MY_USER_ID); 
+});
+
+// 💥 NEW: Function to toggle delete buttons based on current MY_USER_ID
+function updateDeleteButtonsVisibility() {
+    const allMessages = document.querySelectorAll('.message-bubble');
+    allMessages.forEach(msg => {
+        let deleteBtn = msg.querySelector('.delete-btn');
+        if (MY_USER_ID === 'x' && msg.dataset.id) {
+            if (!deleteBtn) {
+                 // Re-add button if needed (e.g., history loaded before user selection completed)
+                 // This is complex, simply focus on visibility for now.
+            }
+        } else {
+            if (deleteBtn) {
+                deleteBtn.remove();
+            }
+        }
+    });
 }
 
 
@@ -83,79 +216,47 @@ function addMessage(text, className, timestamp, status, messageId) {
 // --- REAL-TIME SEND/RECEIVE LOGIC ---
 // ----------------------------------------------------------------------
 
-// 1. Send Message on Form Submit
 form.addEventListener('submit', function(e) {
     e.preventDefault();
-    if (input.value) {
+    if (input.value && !form.querySelector('button').disabled) {
         const msgData = {
             sender: MY_USER_ID,
             text: input.value
         };
         
-        // Emit the message to the server
         socket.emit('chat message', msgData);
-        
-        // 💥 MODIFIED: Do NOT add message immediately. Wait for the server to broadcast
-        // the saved message (with MongoDB _id and timestamp) to avoid duplicates and simplify status tracking.
-        
-        input.value = ''; // Clear the input field
+        input.value = '';
     }
 });
 
 
-// 2. Receive History from Server
+// Receive History from Server 💥 MODIFIED
 socket.on('history', function(messages) {
     console.log('Received chat history.');
+    // Clear old messages before loading history
+    messages.innerHTML = ''; 
     messages.forEach(msg => {
         const type = (msg.sender === MY_USER_ID) ? 'my-message' : 'their-message';
         const display_text = (msg.sender === MY_USER_ID) ? msg.text : `${msg.sender}: ${msg.text}`;
-        // 💥 MODIFIED: Pass status and _id
-        addMessage(display_text, type, msg.timestamp, msg.status, msg._id); 
+        // Pass message._id
+        addMessage(display_text, type, msg.timestamp, msg._id); 
     });
 });
 
 
-// 3. Receive Real-Time Message from Server
+// Receive Real-Time Message from Server 💥 MODIFIED
 socket.on('chat message', function(msgData) {
     const type = (msgData.sender === MY_USER_ID) ? 'my-message' : 'their-message';
     const display_text = (msgData.sender === MY_USER_ID) ? msgData.text : `${msgData.sender}: ${msgData.text}`;
-    
-    // 💥 MODIFIED: Display message for ALL users now
-    addMessage(display_text, type, msgData.timestamp, msgData.status, msgData._id);
-
-    // If it's a message from the OTHER person, confirm delivery.
-    if (type === 'their-message') {
-        // Send a confirmation back to the server, using the message's ID from MongoDB
-        socket.emit('message delivered', { messageId: msgData._id });
-        
-        // Optional: Emit 'message read' when the user brings the window into focus
-        // Example: window.addEventListener('focus', () => socket.emit('message read', { messageId: msgData._id }));
-    }
+    // Pass message._id
+    addMessage(display_text, type, msgData.timestamp, msgData._id); 
 });
 
-
-// 4. 💥 NEW: Handle status updates broadcast from server
-socket.on('message status update', function(msgData) {
-    // Find the message bubble in the DOM by its data-id attribute
-    const messageElement = document.querySelector(`.message-bubble[data-id="${msgData._id}"]`);
-
-    if (messageElement && msgData.sender === MY_USER_ID) {
-        // Only update the status icon if it's MY message (I am the sender)
-        const timeSpan = messageElement.querySelector('.message-time');
-        
-        if (timeSpan) {
-            let statusIcon = '';
-            if (msgData.status === 'read') {
-                statusIcon = '<span class="status-read">✓✓</span>';
-            } else if (msgData.status === 'delivered') {
-                statusIcon = '<span class="status-delivered">✓✓</span>';
-            } else {
-                statusIcon = '<span class="status-sent">✓</span>'; 
-            }
-            
-            // Re-render the time span with the new status icon
-            const time = new Date(msgData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            timeSpan.innerHTML = `${time} ${statusIcon}`;
-        }
+// 💥 NEW: Handler for message deletion broadcast
+socket.on('message deleted', function(data) {
+    const messageElement = document.querySelector(`.message-bubble[data-id="${data.messageId}"]`);
+    if (messageElement) {
+        messageElement.remove();
+        console.log(`Message ${data.messageId} removed from DOM.`);
     }
 });
