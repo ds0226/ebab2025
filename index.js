@@ -10,6 +10,7 @@ const mongoose = require('mongoose');
 // --- MongoDB and Mongoose Integration ---
 
 // Use environment variable MONGO_URI for deployment security, fallback for local testing.
+
 const uri = process.env.MONGO_URI || "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
 
 
