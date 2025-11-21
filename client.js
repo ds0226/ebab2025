@@ -4,6 +4,7 @@
 // --- SOCKET.IO CONNECTION & SETUP ---
 // ----------------------------------------------------------------------
 
+// IMPORTANT: Ensure this URL matches your active Render service URL
 const RENDER_LIVE_URL = 'https://ebab2025.onrender.com'; 
 const socketUrl = (window.location.hostname === 'localhost') ? undefined : RENDER_LIVE_URL;
 const socket = io(socketUrl, { transports: ['websocket'] }); 
@@ -16,7 +17,8 @@ const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
 
-const otherUserStatusElement = document.getElementById('other-user-status');
+// *** REFERENCE THE ELEMENT FOR STATUS TEXT INSIDE THE RIGHT-SIDE CONTAINER ***
+const otherUserStatusElement = document.getElementById('other-user-status'); 
 const myUserIdDisplay = document.getElementById('my-user-id-display');
 const headerBar = document.getElementById('header-bar');
 
@@ -26,7 +28,7 @@ const selectUserXBtn = document.getElementById('select-user-x');
 const selectUserIBtn = document.getElementById('select-user-i');
 
 
-// Delete Action Bar 
+// Delete Action Bar (Created dynamically and appended to body)
 const deleteActionBar = document.createElement('div'); 
 deleteActionBar.id = 'delete-action-bar';
 deleteActionBar.innerHTML = `
@@ -50,11 +52,14 @@ const LONG_PRESS_DURATION = 500;
 // --- CORE UI FUNCTIONS ---
 // ----------------------------------------------------------------------
 
+/**
+ * Creates and appends a new message bubble to the chat.
+ */
 function addMessage(text, className, timestamp, messageId, status) { 
     const item = document.createElement('div');
     const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     
-    // Message Receipt Status Logic
+    // Message Receipt Status Logic (WhatsApp style icons)
     let statusIcon = '';
     if (className === 'my-message' && status) {
         if (status === 'read') {
@@ -78,6 +83,7 @@ function addMessage(text, className, timestamp, messageId, status) {
     messages.appendChild(item);
     messages.scrollTop = messages.scrollHeight;
     
+    // Only allow user 'x' to initiate deletion
     if (className === 'my-message' && MY_USER_ID === 'x' && messageId) {
         setupLongPressHandler(item, messageId);
     }
@@ -86,8 +92,8 @@ function addMessage(text, className, timestamp, messageId, status) {
 }
 
 /**
- * Calculates and formats the time since the user was last online.
- * This is the function that provides the detailed offline duration.
+ * Calculates and formats the time since the user was last online, 
+ * providing the detailed duration requested by the user.
  */
 function formatLastSeen(timestamp) {
     if (!timestamp) return 'Offline';
@@ -100,6 +106,9 @@ function formatLastSeen(timestamp) {
     } else if (diff < 3600000) {
         const minutes = Math.floor(diff / 60000);
         return `Last seen ${minutes} min ago`;
+    } else if (diff < 86400000) { // Less than 24 hours
+        const hours = Math.floor(diff / 3600000);
+        return `Last seen ${hours} hr ago`;
     } else if (lastSeen.toDateString() === now.toDateString()) {
         return `Last seen today at ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     } else {
@@ -161,7 +170,7 @@ function updateOtherUserStatus(statusMap) {
         otherUserStatusElement.textContent = 'Online';
         otherUserStatusElement.className = 'status-online';
     } else {
-        // Use the detailed offline time here
+        // Use the function to show detailed duration (hours, minutes, etc.)
         otherUserStatusElement.textContent = formatLastSeen(otherUser.lastSeen);
         otherUserStatusElement.className = 'status-offline';
     }
@@ -284,8 +293,12 @@ document.getElementById('delete-selected-btn').addEventListener('click', () => {
 
 document.getElementById('cancel-selection-btn').addEventListener('click', clearSelection);
 
+/**
+ * Sets up touch/mouse event listeners for long-press message selection.
+ */
 function setupLongPressHandler(element, messageId) {
     const startPress = () => {
+        // Only start timer if action bar is NOT visible (to avoid interfering with deletion)
         if (!deleteActionBar.classList.contains('visible')) {
             pressTimer = setTimeout(() => {
                 toggleSelection(element, messageId);
@@ -298,6 +311,7 @@ function setupLongPressHandler(element, messageId) {
         pressTimer = null;
     };
     
+    // Clicking a message while in selection mode toggles selection
     element.addEventListener('click', (e) => {
         if (deleteActionBar.classList.contains('visible')) {
             e.preventDefault();
@@ -305,6 +319,7 @@ function setupLongPressHandler(element, messageId) {
         }
     });
 
+    // Touch/Mouse event handlers for long press
     element.addEventListener('touchstart', startPress);
     element.addEventListener('touchend', endPress);
     element.addEventListener('touchcancel', () => clearTimeout(pressTimer));
@@ -342,7 +357,7 @@ socket.on('chat message', function(msgData) {
     const type = (msgData.sender === MY_USER_ID) ? 'my-message' : 'their-message';
     const display_text = (msgData.sender === MY_USER_ID) ? msgData.text : `${msgData.sender}: ${msgData.text}`;
     
-    addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
+    const messageElement = addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
     
     // Auto-confirm delivery for received messages
     if (type === 'their-message') {

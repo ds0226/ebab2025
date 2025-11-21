@@ -1,40 +1,48 @@
-/* --- BASE STYLES --- */
-body { 
+/* --- WHATSAPP DARK THEME STYLES (MOBILE-FIRST) --- */
+
+/* 1. Global Setup and Mobile Readiness */
+html, body {
+    height: 100%;
     margin: 0; 
     padding: 0; 
-    font-family: sans-serif; 
-    background: #f0f0f0; 
+    font-family: Arial, sans-serif;
+    background-color: #0F161A; /* Darkest background */
+    color: #E0E0E0; /* Light text for dark mode */
 }
 
+body { 
+    display: flex; 
+    flex-direction: column;
+    min-height: 100vh; 
+}
+
+/* 2. Chat Container - Full screen on mobile */
 #chat-container {
     max-width: 600px;
-    height: 100vh;
+    width: 100%; 
+    height: 100vh; 
     margin: 0 auto;
-    background: white;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    background-color: #111B21; /* Slightly lighter chat background */
+    box-shadow: 0 0 10px rgba(0,0,0,0.5); 
     display: flex;
-    flex-direction: column;
+    flex-direction: column; 
 }
 
-/* --- HEADER BAR (STATUS) STYLES --- */
+/* 3. Header Bar (User Info/Status) */
 #header-bar {
-    /* Updated for light theme */
-    background-color: #075E54; /* WhatsApp green header color */
-    color: white;
+    background-color: #1F2C34; /* Header background */
+    color: #E0E0E0;
     padding: 10px 15px;
     display: flex;
-    justify-content: space-between;
+    /* PUSHES ELEMENTS TO OPPOSITE SIDES */
+    justify-content: space-between; 
     align-items: center;
+    border-bottom: 1px solid #111B21;
     flex-shrink: 0; 
-    /* This must be set to 'flex' by client.js after user selects ID */
     display: none; 
 }
 
-#user-info {
-    display: flex;
-    flex-direction: column;
-}
-
+/* Left Side: Your ID */
 #current-user-display {
     font-size: 16px;
     font-weight: 500;
@@ -42,107 +50,198 @@ body {
 }
 
 #my-user-id-display {
-    color: #DCF8C6; /* Light green text */
+    color: #4CAF50; /* Green highlight for own ID */
     font-weight: bold;
+}
+
+/* Right Side: Other User's Status Container */
+#other-user-status-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end; /* Align text to the right */
+}
+
+#other-user-status-label {
+    font-size: 10px;
+    color: #A0AEC0;
+    margin: 0;
 }
 
 #other-user-status {
     font-size: 13px;
-    margin-top: 2px;
+    margin: 0;
     font-weight: bold;
 }
 
 /* 🟢 ONLINE STATUS (Green) */
 .status-online {
-    color: #4CAF50; 
+    color: #4CAF50;
 }
 
-/* 🔴 OFFLINE STATUS (Red) */
+/* 🔴 OFFLINE STATUS (Gray for "Last seen") */
 .status-offline {
-    color: #FF0000; 
+    color: #A0AEC0; 
 }
 
 
-/* --- MESSAGE AND FORM STYLES (Kept from your original) --- */
+/* 4. Messages Area (UNMODIFIED) */
 #messages {
     list-style-type: none;
     margin: 0;
     padding: 10px;
-    flex-grow: 1;
-    overflow-y: scroll;
+    flex-grow: 1; 
+    overflow-y: auto;
     display: flex;
-    flex-direction: column;
+    flex-direction: column; 
+    background-color: #0F161A; 
 }
 
+/* 5. Message Bubbles (UNMODIFIED) */
 .message-bubble {
-    padding: 8px 12px;
-    border-radius: 18px;
-    margin-bottom: 8px;
-    max-width: 80%;
+    position: relative; 
+    padding: 8px 12px 20px 12px; 
+    border-radius: 8px; 
+    margin-bottom: 9px;
+    max-width: 85%; 
     word-wrap: break-word;
-    font-size: 14px;
+    font-size: 15px;
+    color: #E0E0E0;
+    display: block; 
+    line-height: 1.3;
 }
 
 .my-message {
-    background-color: #DCF8C6; 
-    align-self: flex-end;
+    background-color: #075E54; 
+    align-self: flex-end; 
     margin-left: auto;
+    border-bottom-right-radius: 0;
 }
 
 .their-message {
-    background-color: #FFFFFF;
-    border: 1px solid #EEEEEE;
-    align-self: flex-start;
+    background-color: #1F2C34; 
+    align-self: flex-start; 
+    margin-right: auto;
+    border-bottom-left-radius: 0;
 }
 
-/* Add styles for message time/status icons (assumed from previous versions) */
 .message-time {
+    position: absolute;
+    bottom: 4px;
+    right: 7px;
     font-size: 0.7em;
-    color: rgba(0, 0, 0, 0.5); /* Darker text for light background */
-    margin-left: 5px;
+    color: rgba(255, 255, 255, 0.6); 
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
 }
 
-.message-time .status-sent,
-.message-time .status-delivered,
-.message-time .status-read {
-    font-weight: bold;
+.message-time .status-sent, .message-time .status-delivered, .message-time .status-read {
+    font-size: 1.1em;
+    line-height: 1;
     margin-left: 3px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.6); 
 }
 
 .message-time .status-delivered {
-    color: #777; 
+    color: #A0AEC0;
 }
 
 .message-time .status-read {
-    color: #34B7F1; /* Blue read receipt */
+    color: #34B7F1;
 }
 
-#form {
-    background: #eee;
-    padding: 10px;
+/* 6. Delete/Action Overlay (UNMODIFIED) */
+.message-bubble.selected {
+    box-shadow: inset 0 0 0 2px #34B7F1; 
+    background-color: rgba(52, 183, 241, 0.3) !important; 
+    cursor: pointer;
+}
+
+#delete-action-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background-color: #1F2C34;
+    color: white;
     display: flex;
-    /* This must be set to 'flex' by client.js after user selects ID */
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    z-index: 1000;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease-out;
+}
+
+#delete-action-bar.visible {
+    transform: translateY(0);
+}
+
+#delete-action-bar button {
+    background: transparent;
+    border: none;
+    color: #E0E0E0;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 10px;
+    margin-left: 15px;
+}
+
+#delete-action-bar #selected-count {
+    margin-right: auto;
+    font-size: 1.1em;
+    font-weight: bold;
+}
+
+/* 7. Input Form Area (UNMODIFIED) */
+#form {
+    background-color: #111B21; 
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    border-top: 1px solid #1F2C34;
+    flex-shrink: 0;
     display: none; 
 }
 
 #input {
     flex-grow: 1;
-    border: 1px solid #ccc;
-    padding: 10px;
-    border-radius: 20px;
-    margin-right: 10px;
+    background: #2C343F;
+    color: #FFFFFF;
+    border: none; 
+    padding: 10px 15px;
+    border-radius: 25px;
+    margin-right: 8px;
+    font-size: 16px; 
 }
 
-button {
+#input:focus {
+    outline: none;
+}
+
+#send-button {
     background: #075E54;
-    color: white;
     border: none;
-    padding: 10px 15px;
-    border-radius: 20px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     cursor: pointer;
 }
 
-/* --- Initial User Selection Styles (Adjusted for light theme background) --- */
+#send-button svg {
+    fill: white;
+    width: 20px;
+    height: 20px;
+    transform: rotate(45deg) translate(2px, -2px); 
+}
+
+/* --- Initial User Selection Styles (UNMODIFIED) --- */
 #initial-user-selection {
     position: absolute;
     top: 0;
@@ -155,12 +254,12 @@ button {
     align-items: center;
     text-align: center;
     padding: 20px;
-    background-color: #FFFFFF; 
+    background-color: #0F161A; 
     z-index: 1000; 
 }
 
 #initial-user-selection h2 {
-    color: #333; /* Dark text on light background */
+    color: #E0E0E0;
     margin-bottom: 30px;
 }
 
@@ -182,8 +281,8 @@ button {
 }
 
 #initial-user-selection button:disabled {
-    background-color: #ccc;
-    color: #888;
+    background-color: #1F2C34;
+    color: #A0AEC0;
     cursor: not-allowed;
-    border: 1px solid #aaa;
+    border: 1px solid #4A5561;
 }
