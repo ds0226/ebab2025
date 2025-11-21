@@ -17,7 +17,6 @@ const input = document.getElementById('input');
 const messages = document.getElementById('messages');
 const userSelector = document.getElementById('user-selector');
 const otherUserStatusElement = document.getElementById('other-user-status');
-// 💥 NEW DOM Elements
 const myUserIdDisplay = document.getElementById('my-user-id-display');
 const headerBar = document.getElementById('header-bar');
 const deleteActionBar = document.createElement('div'); 
@@ -33,27 +32,37 @@ const ALL_USERS = ['x', 'i'];
 
 let MY_USER_ID = userSelector ? userSelector.value : 'x'; 
 
-// 💥 NEW: State for deletion logic
 let selectedMessages = [];
 let pressTimer = null;
-const LONG_PRESS_DURATION = 500; // 500ms for long press
+const LONG_PRESS_DURATION = 500; 
 
-// Initialize header display
 myUserIdDisplay.textContent = MY_USER_ID;
 
 // ----------------------------------------------------------------------
-// --- MESSAGE HELPER FUNCTION (Simplified for WhatsApp UI) ---
+// --- MESSAGE HELPER FUNCTION (With Status Logic RESTORED) ---
 // ----------------------------------------------------------------------
 
-function addMessage(text, className, timestamp, messageId) { 
+// 💥 MODIFIED: Accepts 'status'
+function addMessage(text, className, timestamp, messageId, status) { 
     const item = document.createElement('div');
     
     const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     
-    // We only include the text and the time/status. The delete action is now triggered by long-press/selection.
+    // 💥 RESTORED: Status logic
+    let statusIcon = '';
+    if (className === 'my-message' && status) {
+        if (status === 'read') {
+            statusIcon = '<span class="status-read">✓✓</span>'; 
+        } else if (status === 'delivered') {
+            statusIcon = '<span class="status-delivered">✓✓</span>';
+        } else {
+            statusIcon = '<span class="status-sent">✓</span>';
+        }
+    }
+
     item.innerHTML = `
         <span class="message-text">${text}</span>
-        <span class="message-time">${time}</span>
+        <span class="message-time">${time} ${statusIcon}</span>
     `;
     
     item.classList.add('message-bubble', className);
@@ -63,7 +72,6 @@ function addMessage(text, className, timestamp, messageId) {
     messages.appendChild(item);
     messages.scrollTop = messages.scrollHeight;
     
-    // 💥 NEW: Add long-press listeners for deletion if applicable
     if (className === 'my-message' && MY_USER_ID === 'x' && messageId) {
         setupLongPressHandler(item, messageId);
     }
@@ -72,7 +80,7 @@ function addMessage(text, className, timestamp, messageId) {
 }
 
 // ----------------------------------------------------------------------
-// --- NEW DELETE/SELECTION LOGIC (WhatsApp Style) ---
+// --- DELETE/SELECTION LOGIC (WhatsApp Style) ---
 // ----------------------------------------------------------------------
 
 function toggleSelection(element, messageId) {
@@ -92,11 +100,11 @@ function updateActionBar() {
     
     if (count > 0) {
         deleteActionBar.classList.add('visible');
-        headerBar.style.display = 'none'; // Hide normal header
+        headerBar.style.display = 'none';
         selectedCountSpan.textContent = `${count} selected`;
     } else {
         deleteActionBar.classList.remove('visible');
-        headerBar.style.display = 'flex'; // Show normal header
+        headerBar.style.display = 'flex';
     }
 }
 
@@ -106,13 +114,10 @@ function clearSelection() {
     updateActionBar();
 }
 
-// Event handlers for the action bar buttons
 document.getElementById('delete-selected-btn').addEventListener('click', () => {
     if (selectedMessages.length > 0) {
         if (confirm(`Delete ${selectedMessages.length} message(s)?`)) {
-            // Send ALL selected messages for deletion
             socket.emit('delete multiple messages', { messageIds: selectedMessages, senderId: MY_USER_ID });
-            // The 'message deleted' handler will clear the selection
         }
     }
 });
@@ -120,13 +125,10 @@ document.getElementById('delete-selected-btn').addEventListener('click', () => {
 document.getElementById('cancel-selection-btn').addEventListener('click', clearSelection);
 
 
-// Long-press detection function for mobile/touch
 function setupLongPressHandler(element, messageId) {
     const startPress = () => {
-        // Only allow long press if not already selecting messages
         if (!deleteActionBar.classList.contains('visible')) {
             pressTimer = setTimeout(() => {
-                // Long press detected: toggle selection
                 toggleSelection(element, messageId);
             }, LONG_PRESS_DURATION);
         }
@@ -134,14 +136,12 @@ function setupLongPressHandler(element, messageId) {
 
     const endPress = () => {
         clearTimeout(pressTimer);
-        // If the action bar is visible (in selection mode), a quick tap should toggle selection
         if (deleteActionBar.classList.contains('visible') && pressTimer !== null) {
-            // The click/touchend event will be handled by the click listener below
+            // Allow tap to select after action bar is visible
         }
         pressTimer = null;
     };
     
-    // General click/tap logic: used for toggling selection once the action bar is visible
     element.addEventListener('click', (e) => {
         if (deleteActionBar.classList.contains('visible')) {
             e.preventDefault();
@@ -149,7 +149,6 @@ function setupLongPressHandler(element, messageId) {
         }
     });
 
-    // Touch events for mobile long press
     element.addEventListener('touchstart', startPress);
     element.addEventListener('touchend', endPress);
     element.addEventListener('touchcancel', () => clearTimeout(pressTimer));
@@ -160,7 +159,6 @@ function setupLongPressHandler(element, messageId) {
 // ----------------------------------------------------------------------
 
 function formatLastSeen(timestamp) {
-    // ... (same as before) ...
     if (!timestamp) return 'Offline';
     const now = new Date();
     const lastSeen = new Date(timestamp);
@@ -233,7 +231,7 @@ socket.on('user-lock-status', function(activeUsersMap) {
         }
     });
 
-    const sendButton = form.querySelector('button');
+    const sendButton = form.querySelector('#send-button');
     
     if (!claimedByUser) {
         const availableOption = Array.from(userSelector.options).find(opt => !opt.disabled);
@@ -275,12 +273,12 @@ socket.on('connect', () => {
 });
 
 // ----------------------------------------------------------------------
-// --- REAL-TIME SEND/RECEIVE & DELETION LOGIC ---
+// --- REAL-TIME SEND/RECEIVE & STATUS UPDATE LOGIC ---
 // ----------------------------------------------------------------------
 
 form.addEventListener('submit', function(e) {
     e.preventDefault();
-    if (input.value && !form.querySelector('button').disabled) {
+    if (input.value && !form.querySelector('#send-button').disabled) {
         const msgData = {
             sender: MY_USER_ID,
             text: input.value
@@ -297,7 +295,8 @@ socket.on('history', function(messages) {
     messages.forEach(msg => {
         const type = (msg.sender === MY_USER_ID) ? 'my-message' : 'their-message';
         const display_text = (msg.sender === MY_USER_ID) ? msg.text : `${msg.sender}: ${msg.text}`;
-        addMessage(display_text, type, msg.timestamp, msg._id); 
+        // 💥 MODIFIED: Pass status and _id
+        addMessage(display_text, type, msg.timestamp, msg._id, msg.status); 
     });
 });
 
@@ -305,10 +304,46 @@ socket.on('history', function(messages) {
 socket.on('chat message', function(msgData) {
     const type = (msgData.sender === MY_USER_ID) ? 'my-message' : 'their-message';
     const display_text = (msgData.sender === MY_USER_ID) ? msgData.text : `${msgData.sender}: ${msgData.text}`;
-    addMessage(display_text, type, msgData.timestamp, msgData._id); 
+    
+    // 💥 MODIFIED: Pass status and _id
+    addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
+    
+    // 💥 RESTORED: If it's a message from the OTHER person, confirm delivery.
+    if (type === 'their-message') {
+        socket.emit('message delivered', { messageId: msgData._id });
+        
+        // Optional: Emit 'message read' when the user brings the window into focus
+        // window.addEventListener('focus', () => socket.emit('message read', { messageId: msgData._id }));
+    }
 });
 
-// 💥 MODIFIED: Handler for message deletion broadcast
+// 💥 RESTORED: Handler for status updates broadcast from server
+socket.on('message status update', function(msgData) {
+    // Find the message bubble in the DOM by its data-id attribute
+    const messageElement = document.querySelector(`.message-bubble[data-id="${msgData._id}"]`);
+
+    if (messageElement && msgData.sender === MY_USER_ID) {
+        // Only update the status icon if it's MY message (I am the sender)
+        const timeSpan = messageElement.querySelector('.message-time');
+        
+        if (timeSpan) {
+            let statusIcon = '';
+            if (msgData.status === 'read') {
+                statusIcon = '<span class="status-read">✓✓</span>';
+            } else if (msgData.status === 'delivered') {
+                statusIcon = '<span class="status-delivered">✓✓</span>';
+            } else {
+                statusIcon = '<span class="status-sent">✓</span>'; 
+            }
+            
+            // Re-render the time span with the new status icon
+            const time = new Date(msgData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            timeSpan.innerHTML = `${time} ${statusIcon}`;
+        }
+    }
+});
+
+
 socket.on('message deleted', function(data) {
     if (data.messageIds) {
         data.messageIds.forEach(id => {
@@ -317,6 +352,6 @@ socket.on('message deleted', function(data) {
                 messageElement.remove();
             }
         });
-        clearSelection(); // CRITICAL: Clear selection after removal
+        clearSelection();
     }
 });

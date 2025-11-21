@@ -1,4 +1,4 @@
-/* --- WHATSAPP DARK THEME STYLES --- */
+/* --- WHATSAPP DARK THEME STYLES (WITH STATUS ICONS) --- */
 
 /* 1. Global Setup and Mobile Readiness */
 html, body {
@@ -6,7 +6,7 @@ html, body {
     margin: 0; 
     padding: 0; 
     font-family: Arial, sans-serif;
-    background-color: #0F161A; /* WhatsApp Dark Background */
+    background-color: #0F161A; 
     color: #E0E0E0; 
 }
 
@@ -22,7 +22,7 @@ body {
     width: 100%; 
     height: 100vh; 
     margin: 0 auto;
-    background-color: #111B21; /* Dark Chat Background */
+    background-color: #111B21; 
     box-shadow: 0 0 10px rgba(0,0,0,0.5); 
     display: flex;
     flex-direction: column;
@@ -30,7 +30,7 @@ body {
 
 /* 3. Header Bar (User Info/Status) */
 #header-bar {
-    background-color: #1F2C34; /* WhatsApp Dark Header Color */
+    background-color: #1F2C34; 
     color: #E0E0E0;
     padding: 10px 15px;
     display: flex;
@@ -62,11 +62,11 @@ body {
 }
 
 .status-online {
-    color: #4CAF50; /* Green for online */
+    color: #4CAF50;
 }
 
 .status-offline {
-    color: #A0AEC0; /* Muted gray for last seen/offline */
+    color: #A0AEC0;
 }
 
 #user-selector {
@@ -94,23 +94,23 @@ body {
 /* 5. Message Bubbles */
 .message-bubble {
     position: relative; 
-    padding: 8px 12px 20px 12px; 
+    padding: 8px 12px 20px 12px; /* Extra padding for time/status at bottom */
     border-radius: 8px; 
     margin-bottom: 9px;
     max-width: 85%; 
     word-wrap: break-word;
     font-size: 15px;
     color: #E0E0E0;
-    display: block; /* Ensures text wraps naturally */
+    display: block; 
     line-height: 1.3;
 }
 
 /* My Messages (Sent) */
 .my-message {
-    background-color: #075E54; /* Classic WhatsApp Green/Teal */
+    background-color: #075E54;
     align-self: flex-end;
     margin-left: auto;
-    border-bottom-right-radius: 0; /* Corner that touches the tail */
+    border-bottom-right-radius: 0;
 }
 
 /* Their Messages (Received) */
@@ -118,10 +118,10 @@ body {
     background-color: #1F2C34; 
     align-self: flex-start;
     margin-right: auto;
-    border-bottom-left-radius: 0; /* Corner that touches the tail */
+    border-bottom-left-radius: 0;
 }
 
-/* Time and Status */
+/* Time and Status Container */
 .message-time {
     position: absolute;
     bottom: 4px;
@@ -133,10 +133,34 @@ body {
     line-height: 1;
 }
 
+/* 💥 RESTORED: Status Icon Styling 💥 */
+
+/* Base style for checkmarks */
+.message-time .status-sent,
+.message-time .status-delivered,
+.message-time .status-read {
+    font-size: 1.1em;
+    line-height: 1;
+    margin-left: 3px;
+    font-weight: bold;
+    /* Sent (Single checkmark - blends with time color) */
+    color: rgba(255, 255, 255, 0.6); 
+}
+
+/* Delivered (Double checkmark - light gray) */
+.message-time .status-delivered {
+    color: #A0AEC0;
+}
+
+/* Read (Double checkmark - blue/teal) */
+.message-time .status-read {
+    color: #34B7F1;
+}
+
 /* 6. Delete/Action Overlay (WhatsApp long-press style) */
 .message-bubble.selected {
-    box-shadow: inset 0 0 0 2px #34B7F1; /* Inner border highlight */
-    background-color: rgba(52, 183, 241, 0.3) !important; /* Semi-transparent blue overlay */
+    box-shadow: inset 0 0 0 2px #34B7F1; 
+    background-color: rgba(52, 183, 241, 0.3) !important; 
     cursor: pointer;
 }
 
@@ -221,6 +245,5 @@ body {
     fill: white;
     width: 20px;
     height: 20px;
-    /* Adjust rotation for the paper airplane look */
     transform: rotate(45deg) translate(2px, -2px); 
 }
