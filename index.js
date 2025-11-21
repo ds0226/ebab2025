@@ -9,11 +9,7 @@ const path = require('path');
 // --- MongoDB and Mongoose Integration ---
 const mongoose = require('mongoose');
 
-// Use environment variable MONGO_URI for deployment security, fallback to hardcoded for local testing.
-// NOTE: I'm leaving your connection string as the hardcoded fallback for local testing, 
-// but you should use the environment variable on Render for security.
-
-
+// Using environment variable MONGO_URI
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const uri = "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
 
@@ -40,7 +36,6 @@ async function run() {
 }
 run().catch(console.dir);
 
-
 // **Mongoose is the preferred method for connecting**
 mongoose.connect(uri)
   .then(() => console.log('Successfully connected to MongoDB Atlas!'))
@@ -51,7 +46,13 @@ mongoose.connect(uri)
 const MessageSchema = new mongoose.Schema({
     sender: { type: String, required: true },
     text: { type: String, required: true },
-    timestamp: { type: Date, default: Date.now }
+    timestamp: { type: Date, default: Date.now },
+    // 💥 NEW: Add message status
+    status: { 
+        type: String, 
+        enum: ['sent', 'delivered', 'read'],
+        default: 'sent' 
+    }
 });
 
 const Message = mongoose.model('Message', MessageSchema);
@@ -79,6 +80,24 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// 💥 NEW: Helper function to update status and broadcast
+const updateMessageStatus = async (messageId, newStatus) => {
+    try {
+        const updatedMessage = await Message.findByIdAndUpdate(
+            messageId,
+            { status: newStatus },
+            { new: true } // Return the updated document
+        );
+        if (updatedMessage) {
+            // Broadcast the change to ALL clients
+            io.emit('message status update', updatedMessage);
+            console.log(`Message ${messageId} updated to status: ${newStatus}`);
+        }
+    } catch (error) {
+        console.error(`Error updating message status to ${newStatus}:`, error);
+    }
+};
+
 
 // --- SOCKET.IO REAL-TIME LOGIC ---
 io.on('connection', async (socket) => {
@@ -98,14 +117,28 @@ io.on('connection', async (socket) => {
     
     // Save the new message to the database
     try {
-       const newMessage = new Message(msgData);
+       // 💥 MODIFIED: Set initial status to 'sent'
+       const newMessage = new Message({ ...msgData, status: 'sent' }); 
        const savedMessage = await newMessage.save();
-       // Broadcast the saved message (which now has a timestamp from MongoDB)
+       // Broadcast the saved message (which now has a timestamp and _id from MongoDB)
        io.emit('chat message', savedMessage); 
     } catch (e) { 
         console.error("Error saving message:", e); 
     }
   });
+  
+  // 💥 NEW: Listen for delivery confirmation from a client
+  socket.on('message delivered', (data) => {
+      // The receiving client has displayed the message.
+      updateMessageStatus(data.messageId, 'delivered');
+  });
+
+  // 💥 NEW: Listen for read confirmation from a client
+  socket.on('message read', (data) => {
+      // The receiving client has likely brought the chat window into focus.
+      updateMessageStatus(data.messageId, 'read');
+  });
+
 
   socket.on('disconnect', () => {
     console.log('User disconnected');

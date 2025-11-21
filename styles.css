@@ -1,70 +1,21 @@
-/* --- MOBILE OPTIMIZATIONS --- */
-/* 1. Ensure full height for mobile viewports */
-html, body {
-    height: 100%;
-    margin: 0; 
-    padding: 0;
-}
-
-body { 
-    margin: 0; 
-    padding: 0; 
-    font-family: sans-serif; 
-    background: #f0f0f0; 
-    /* Use flex to properly manage space between selector bar and chat container */
-    display: flex; 
-    flex-direction: column;
-    /* Use min-height for robustness against mobile browser address bar changes */
-    min-height: 100vh; 
-}
-
+body { margin: 0; padding: 0; font-family: sans-serif; background: #f0f0f0; }
 #chat-container {
     max-width: 600px;
-    /* Use flex-grow to occupy all remaining vertical space */
-    flex-grow: 1; 
-    /* Important for flex children */
-    min-height: 0; 
+    height: 100vh;
     margin: 0 auto;
     background: white;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
     display: flex;
     flex-direction: column;
 }
-
-/* 2. Improve Input UX to prevent accidental zooming on mobile browsers */
-#input {
-    flex-grow: 1;
-    border: 1px solid #ccc;
-    padding: 10px;
-    border-radius: 20px;
-    margin-right: 10px;
-    /* Font size 16px or larger prevents mobile browsers from automatically zooming in */
-    font-size: 16px; 
-}
-
-/* 3. Add visual feedback when the input is selected (focused) */
-#input:focus {
-    outline: none;
-    border-color: #075E54;
-    box-shadow: 0 0 0 2px rgba(7, 94, 84, 0.5); /* Highlight input when focused */
-}
-/* ----------------------------- */
-
-
-#user-select-bar {
-    padding: 10px;
-    background: #e0e0e0;
-    text-align: center;
-}
-
 #messages {
     list-style-type: none;
     margin: 0;
     padding: 10px;
-    flex-grow: 1; 
+    flex-grow: 1; /* Allows the messages area to take up all available space */
     overflow-y: scroll;
     display: flex;
-    flex-direction: column; 
+    flex-direction: column; /* Needed for align-self to work correctly */
 }
 .message-bubble {
     padding: 8px 12px;
@@ -74,13 +25,13 @@ body {
     word-wrap: break-word;
     font-size: 14px;
 }
-
+/* Style for messages sent by the current user (e.g., green/blue, right-aligned) */
 .my-message {
-    background-color: #DCF8C6; 
+    background-color: #DCF8C6; /* WhatsApp light green */
     align-self: flex-end;
     margin-left: auto;
 }
-
+/* Style for messages from the other person (e.g., gray/white, left-aligned) */
 .their-message {
     background-color: #FFFFFF;
     border: 1px solid #EEEEEE;
@@ -91,14 +42,48 @@ body {
     padding: 10px;
     display: flex;
 }
-
+#input {
+    flex-grow: 1;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 20px;
+    margin-right: 10px;
+}
 button {
-    background: #075E54; 
+    background: #075E54; /* WhatsApp primary color */
     color: white;
     border: none;
     padding: 10px 15px;
     border-radius: 20px;
     cursor: pointer;
-    /* Make button text slightly larger for easier tapping */
-    font-size: 15px; 
+}
+
+/* 💥 NEW: Status Icon Styling 💥 */
+
+/* Container for time and status */
+.message-time {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px; /* Separates time/status from message text */
+    font-size: 0.8em; /* Smaller time font */
+}
+
+/* Base style for checkmarks */
+.message-time .status-sent,
+.message-time .status-delivered,
+.message-time .status-read {
+    font-size: 1.1em; /* Slightly larger than time to stand out */
+    line-height: 1;
+    margin-left: 3px;
+    font-weight: bold;
+}
+
+/* Delivered (Gray checkmarks) */
+.message-time .status-delivered {
+    color: #9E9E9E;
+}
+
+/* Read (Blue checkmarks) */
+.message-time .status-read {
+    color: #34B7F1; /* WhatsApp blue */
 }
