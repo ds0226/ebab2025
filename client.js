@@ -26,7 +26,7 @@ const selectUserXBtn = document.getElementById('select-user-x');
 const selectUserIBtn = document.getElementById('select-user-i');
 
 
-// Delete Action Bar (Remains the same)
+// Delete Action Bar 
 const deleteActionBar = document.createElement('div'); 
 deleteActionBar.id = 'delete-action-bar';
 deleteActionBar.innerHTML = `
@@ -38,8 +38,8 @@ document.body.appendChild(deleteActionBar);
 
 const ALL_USERS = ['x', 'i'];
 
-let MY_USER_ID = null; // User ID is null until selection is made
-let selectionMade = false; // Flag to enforce one-time selection
+let MY_USER_ID = null; 
+let selectionMade = false; 
 
 let selectedMessages = [];
 let pressTimer = null;
@@ -47,13 +47,14 @@ const LONG_PRESS_DURATION = 500;
 
 
 // ----------------------------------------------------------------------
-// --- CORE UI FUNCTIONS (addMessage, formatLastSeen, requestUserId) ---
+// --- CORE UI FUNCTIONS ---
 // ----------------------------------------------------------------------
 
 function addMessage(text, className, timestamp, messageId, status) { 
     const item = document.createElement('div');
     const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     
+    // Message Receipt Status Logic
     let statusIcon = '';
     if (className === 'my-message' && status) {
         if (status === 'read') {
@@ -84,8 +85,11 @@ function addMessage(text, className, timestamp, messageId, status) {
     return item;
 }
 
+/**
+ * Calculates and formats the time since the user was last online.
+ * This is the function that provides the detailed offline duration.
+ */
 function formatLastSeen(timestamp) {
-    // 💥 This logic provides the detailed offline duration as requested
     if (!timestamp) return 'Offline';
     const now = new Date();
     const lastSeen = new Date(timestamp);
@@ -108,7 +112,7 @@ function requestUserId(userId) {
 }
 
 // ----------------------------------------------------------------------
-// --- NEW USER SELECTION & UI MANAGEMENT ---
+// --- USER SELECTION & UI MANAGEMENT (ONE-TIME CHOICE) ---
 // ----------------------------------------------------------------------
 
 function finalizeUserSelection(userId) {
@@ -122,13 +126,12 @@ function finalizeUserSelection(userId) {
     initialSelectionArea.style.display = 'none';
     headerBar.style.display = 'flex';
     form.style.display = 'flex';
-    messages.innerHTML = ''; // Clear any messages from previous selection if any
+    messages.innerHTML = ''; 
 
     // 2. Request lock on the server
     requestUserId(MY_USER_ID); 
 }
 
-// Event listeners for the new buttons
 selectUserXBtn.addEventListener('click', function() {
     finalizeUserSelection('x');
 });
@@ -139,11 +142,11 @@ selectUserIBtn.addEventListener('click', function() {
 
 
 // ----------------------------------------------------------------------
-// --- STATUS & LOCK LOGIC (MODIFIED for Button UI) ---
+// --- STATUS & LOCK LOGIC ---
 // ----------------------------------------------------------------------
 
 function updateOtherUserStatus(statusMap) {
-    if (MY_USER_ID === null) return; // Wait until a user is selected
+    if (MY_USER_ID === null) return; 
     
     const otherUserId = ALL_USERS.find(user => user !== MY_USER_ID);
     const otherUser = statusMap[otherUserId];
@@ -158,7 +161,7 @@ function updateOtherUserStatus(statusMap) {
         otherUserStatusElement.textContent = 'Online';
         otherUserStatusElement.className = 'status-online';
     } else {
-        // Use the detailed formatLastSeen output
+        // Use the detailed offline time here
         otherUserStatusElement.textContent = formatLastSeen(otherUser.lastSeen);
         otherUserStatusElement.className = 'status-offline';
     }
@@ -193,13 +196,11 @@ socket.on('user-lock-status', function(activeUsersMap) {
             }
         });
         
-        // Ensure initial selection UI is visible
         initialSelectionArea.style.display = 'flex';
         headerBar.style.display = 'none';
         form.style.display = 'none';
         
     } else if (MY_USER_ID !== null) {
-        // User is already selected, just manage lock status
         
         const myLockIsActive = activeUsersMap[MY_USER_ID] === socket.id;
         
@@ -212,18 +213,16 @@ socket.on('user-lock-status', function(activeUsersMap) {
             input.disabled = false;
         }
         
-        initialSelectionArea.style.display = 'none'; // Ensure selection UI is hidden
-        headerBar.style.display = 'flex'; // Ensure chat UI is visible
+        initialSelectionArea.style.display = 'none';
+        headerBar.style.display = 'flex';
         form.style.display = 'flex';
     }
 });
 
 
 socket.on('user taken', function(data) {
-    // If the currently selected user is taken away (e.g., connection issue), alert and reset.
     alert(`User ID '${data.userId}' is currently being used by another user. Cannot connect.`);
     
-    // Clear the current user ID and reset selection
     MY_USER_ID = null;
     selectionMade = false;
     myUserIdDisplay.textContent = 'N/A';
@@ -234,7 +233,6 @@ socket.on('user taken', function(data) {
 
 
 socket.on('connect', () => {
-    // Attempt to claim the ID only if it has been selected
     if (MY_USER_ID !== null) {
         requestUserId(MY_USER_ID); 
     }
@@ -242,7 +240,7 @@ socket.on('connect', () => {
 
 
 // ----------------------------------------------------------------------
-// --- DELETE/SELECTION LOGIC (Unchanged) ---
+// --- DELETE/SELECTION LOGIC ---
 // ----------------------------------------------------------------------
 
 function toggleSelection(element, messageId) {
@@ -313,7 +311,7 @@ function setupLongPressHandler(element, messageId) {
 }
 
 // ----------------------------------------------------------------------
-// --- REAL-TIME SEND/RECEIVE & STATUS UPDATE LOGIC (Unchanged) ---
+// --- REAL-TIME SEND/RECEIVE & STATUS UPDATE LOGIC ---
 // ----------------------------------------------------------------------
 
 form.addEventListener('submit', function(e) {
@@ -346,6 +344,7 @@ socket.on('chat message', function(msgData) {
     
     addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
     
+    // Auto-confirm delivery for received messages
     if (type === 'their-message') {
         socket.emit('message delivered', { messageId: msgData._id });
     }

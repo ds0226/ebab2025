@@ -4,18 +4,15 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const path = require('path');
-const mongoose = require('mongoose'); // Combined required modules
+const mongoose = require('mongoose'); 
 
 
 // --- MongoDB and Mongoose Integration ---
 
-// The URI should ideally be loaded from an environment variable for deployment.
-// For local testing, the hardcoded URI remains.
-const uri = "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
+// Use environment variable MONGO_URI for deployment security, fallback for local testing.
+const uri = process.env.MONGO_URI || "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
 
 
-// 💥 FIX: Removed the unnecessary and conflicting MongoClient/run() code.
-// We only need the Mongoose connection:
 mongoose.connect(uri)
   .then(() => console.log('Successfully connected to MongoDB Atlas!'))
   .catch(err => console.error('MongoDB connection error:', err));
