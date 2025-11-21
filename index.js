@@ -9,8 +9,6 @@ const path = require('path');
 // --- MongoDB and Mongoose Integration ---
 const mongoose = require('mongoose');
 
-// Use environment variable MONGO_URI for deployment security, fallback to hardcoded for local testing.
-
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const uri = "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
 
@@ -38,7 +36,6 @@ async function run() {
 run().catch(console.dir);
 
 
-// **Mongoose is the preferred method for connecting**
 mongoose.connect(uri)
   .then(() => console.log('Successfully connected to MongoDB Atlas!'))
   .catch(err => console.error('MongoDB connection error:', err));
@@ -66,12 +63,12 @@ const io = new Server(server, {
 });
 // ----------------------------------------
 
-// 💥 Global state for exclusive lock and last seen
-const activeUsers = {}; // { 'x': <socket_id>, 'i': <socket_id> }
-const lastSeenTime = {}; // { 'x': <timestamp>, 'i': <timestamp> }
+// Global state for exclusive lock and last seen
+const activeUsers = {};
+const lastSeenTime = {};
 const ALL_USERS = ['x', 'i'];
 
-// 💥 Helper to broadcast the combined online status
+// Helper to broadcast the combined online status
 const broadcastOnlineStatus = () => {
     const statusMap = {};
     for (const userId of ALL_USERS) { 
@@ -85,10 +82,8 @@ const broadcastOnlineStatus = () => {
 };
 
 
-// Tell Express to serve static files (like index.html, styles.css, client.js)
 app.use(express.static(__dirname));
 
-// Route to serve the main HTML file
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -98,11 +93,9 @@ app.get('/', (req, res) => {
 io.on('connection', async (socket) => {
   console.log('A user connected');
 
-  // Send initial status updates
   socket.emit('user-lock-status', activeUsers);
   broadcastOnlineStatus();
 
-  // Load History on connection
   try {
     const messages = await Message.find().sort({ timestamp: 1 }).limit(100);
     socket.emit('history', messages); 
@@ -110,7 +103,6 @@ io.on('connection', async (socket) => {
     console.error("Error loading chat history:", error);
   }
 
-  // Handler for client requesting a user ID (exclusive lock)
   socket.on('set user', (userId) => {
     if (!ALL_USERS.includes(userId)) return;
 
@@ -135,14 +127,11 @@ io.on('connection', async (socket) => {
   });
 
 
-  // Listen for 'chat message' event from any client
   socket.on('chat message', async (msgData) => {
     if (!socket.data.userId || socket.data.userId !== msgData.sender) {
         console.warn(`Message blocked: Sender ${msgData.sender} is not authorized or assigned.`);
         return;
     }
-    
-    console.log(`Message from ${msgData.sender}: ${msgData.text}`);
     
     try {
        const newMessage = new Message(msgData);
@@ -153,34 +142,32 @@ io.on('connection', async (socket) => {
     }
   });
   
-  // 💥 NEW: Handler for deleting a message
-  socket.on('delete message', async (data) => {
-    const { messageId, senderId } = data;
+  // 💥 NEW: Handler for deleting multiple messages (WhatsApp-style batch delete)
+  socket.on('delete multiple messages', async (data) => {
+    const { messageIds, senderId } = data;
     
     // Authorization Check: Only allow deletion if the sender is 'x' and they are the one currently logged in as 'x'
-    if (senderId !== 'x' || socket.data.userId !== 'x') {
+    if (senderId !== 'x' || socket.data.userId !== 'x' || !Array.isArray(messageIds) || messageIds.length === 0) {
         console.warn(`Deletion attempt blocked: User ${senderId} not authorized or not logged in as 'x'.`);
         return;
     }
 
     try {
-        // Delete message by its MongoDB _id
-        const result = await Message.deleteOne({ _id: messageId });
+        const result = await Message.deleteMany({ _id: { $in: messageIds } });
         
         if (result.deletedCount > 0) {
-            console.log(`Message ${messageId} deleted by user 'x'.`);
+            console.log(`${result.deletedCount} messages deleted by user 'x'.`);
             // Broadcast the deletion to all clients
-            io.emit('message deleted', { messageId: messageId });
+            io.emit('message deleted', { messageIds: messageIds });
         } else {
-            console.warn(`Attempted to delete non-existent message: ${messageId}`);
+            console.warn(`Attempted to delete non-existent messages.`);
         }
     } catch (error) {
-        console.error("Error deleting message:", error);
+        console.error("Error deleting messages:", error);
     }
   });
 
 
-  // Handle disconnect
   socket.on('disconnect', () => {
     const userId = socket.data.userId; 
     if (userId && activeUsers[userId] === socket.id) {
@@ -189,12 +176,9 @@ io.on('connection', async (socket) => {
         
         io.emit('user-lock-status', activeUsers);
         broadcastOnlineStatus();
-        console.log(`User ${userId} released on disconnect.`);
     }
-    console.log('User disconnected');
   });
 });
-// ---------------------------------
 
 
 // --- Server Start Logic ---

@@ -2,29 +2,33 @@
 <html>
 <head>
     <title>Two-Person Chat</title>
-    
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div id="user-select-bar">
-    <label for="user-selector">Chatting as:</label>
-    <select id="user-selector">
-        <option value="x">x</option>
-        <option value="i">i</option>
-    </select>
-</div>    
- <div id="chat-container">
-        <div id="messages"></div>
-
-        <form id="form">
-            <input id="input" autocomplete="off" placeholder="Type a message..." />
-            <button>Send</button>
-        </form>
+<div id="chat-container">
+    
+    <div id="header-bar">
+        <div id="user-info">
+            <h2 id="current-user-display">Chatting as: <span id="my-user-id-display">x</span></h2>
+            <p id="other-user-status" class="status-offline">Offline</p>
+        </div>
+        <select id="user-selector"> 
+            <option value="x">x</option>
+            <option value="i">i</option>
+        </select>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <div id="messages"></div>
+
+    <form id="form">
+        <input id="input" autocomplete="off" placeholder="Type a message..." />
+        <button id="send-button" type="submit">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+    </form>
+</div>
+<script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
 </body>
 </html>
