@@ -6,8 +6,8 @@ html, body {
     margin: 0; 
     padding: 0; 
     font-family: Arial, sans-serif;
-    background-color: #0F161A; /* Darkest background */
-    color: #E0E0E0; /* Light text for dark mode */
+    background-color: #0F161A; 
+    color: #E0E0E0; 
 }
 
 body { 
@@ -22,7 +22,7 @@ body {
     width: 100%; 
     height: 100vh; 
     margin: 0 auto;
-    background-color: #111B21; /* Slightly lighter chat background */
+    background-color: #111B21; 
     box-shadow: 0 0 10px rgba(0,0,0,0.5); 
     display: flex;
     flex-direction: column; 
@@ -30,11 +30,10 @@ body {
 
 /* 3. Header Bar (User Info/Status) */
 #header-bar {
-    background-color: #1F2C34; /* Header background */
+    background-color: #1F2C34; 
     color: #E0E0E0;
     padding: 10px 15px;
     display: flex;
-    /* PUSHES ELEMENTS TO OPPOSITE SIDES */
     justify-content: space-between; 
     align-items: center;
     border-bottom: 1px solid #111B21;
@@ -50,7 +49,7 @@ body {
 }
 
 #my-user-id-display {
-    color: #4CAF50; /* Green highlight for own ID */
+    color: #4CAF50; 
     font-weight: bold;
 }
 
@@ -58,7 +57,7 @@ body {
 #other-user-status-container {
     display: flex;
     flex-direction: column;
-    align-items: flex-end; /* Align text to the right */
+    align-items: flex-end; 
 }
 
 #other-user-status-label {
@@ -84,7 +83,7 @@ body {
 }
 
 
-/* 4. Messages Area (UNMODIFIED) */
+/* 4. Messages Area */
 #messages {
     list-style-type: none;
     margin: 0;
@@ -96,7 +95,7 @@ body {
     background-color: #0F161A; 
 }
 
-/* 5. Message Bubbles (UNMODIFIED) */
+/* 5. Message Bubbles */
 .message-bubble {
     position: relative; 
     padding: 8px 12px 20px 12px; 
@@ -110,6 +109,17 @@ body {
     line-height: 1.3;
 }
 
+/* New/Updated: Media styling inside a bubble */
+.message-bubble .chat-image,
+.message-bubble .chat-video { 
+    max-width: 100%; 
+    border-radius: 6px;
+    margin-top: 5px;
+    display: block;
+    max-height: 300px; /* Limits the display size of media */
+}
+
+/* My Messages (Sent) */
 .my-message {
     background-color: #075E54; 
     align-self: flex-end; 
@@ -117,6 +127,7 @@ body {
     border-bottom-right-radius: 0;
 }
 
+/* Their Messages (Received) */
 .their-message {
     background-color: #1F2C34; 
     align-self: flex-start; 
@@ -124,6 +135,7 @@ body {
     border-bottom-left-radius: 0;
 }
 
+/* Time and Status Container */
 .message-time {
     position: absolute;
     bottom: 4px;
@@ -135,7 +147,10 @@ body {
     line-height: 1;
 }
 
-.message-time .status-sent, .message-time .status-delivered, .message-time .status-read {
+/* Status Icon Styling */
+.message-time .status-sent,
+.message-time .status-delivered,
+.message-time .status-read {
     font-size: 1.1em;
     line-height: 1;
     margin-left: 3px;
@@ -144,14 +159,14 @@ body {
 }
 
 .message-time .status-delivered {
-    color: #A0AEC0;
+    color: #A0AEC0; 
 }
 
 .message-time .status-read {
-    color: #34B7F1;
+    color: #34B7F1; 
 }
 
-/* 6. Delete/Action Overlay (UNMODIFIED) */
+/* 6. Delete/Action Overlay */
 .message-bubble.selected {
     box-shadow: inset 0 0 0 2px #34B7F1; 
     background-color: rgba(52, 183, 241, 0.3) !important; 
@@ -196,7 +211,7 @@ body {
     font-weight: bold;
 }
 
-/* 7. Input Form Area (UNMODIFIED) */
+/* 7. Input Form Area */
 #form {
     background-color: #111B21; 
     padding: 8px;
@@ -207,9 +222,31 @@ body {
     display: none; 
 }
 
+/* New: Photo button style */
+#photo-button {
+    background: transparent;
+    border: none;
+    color: white;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    margin-right: 4px; /* Space between photo and input field */
+}
+
+#photo-button svg {
+    fill: #A0AEC0; /* Gray icon color */
+    width: 24px;
+    height: 24px;
+}
+
+/* Text Input */
 #input {
     flex-grow: 1;
-    background: #2C343F;
+    background: #2C343F; 
     color: #FFFFFF;
     border: none; 
     padding: 10px 15px;
@@ -222,6 +259,7 @@ body {
     outline: none;
 }
 
+/* Send Button */
 #send-button {
     background: #075E54;
     border: none;
@@ -241,7 +279,7 @@ body {
     transform: rotate(45deg) translate(2px, -2px); 
 }
 
-/* --- Initial User Selection Styles (UNMODIFIED) --- */
+/* --- Initial User Selection Styles --- */
 #initial-user-selection {
     position: absolute;
     top: 0;

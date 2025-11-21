@@ -4,7 +4,6 @@
 // --- SOCKET.IO CONNECTION & SETUP ---
 // ----------------------------------------------------------------------
 
-// IMPORTANT: Ensure this URL matches your active Render service URL
 const RENDER_LIVE_URL = 'https://ebab2025.onrender.com'; 
 const socketUrl = (window.location.hostname === 'localhost') ? undefined : RENDER_LIVE_URL;
 const socket = io(socketUrl, { transports: ['websocket'] }); 
@@ -16,11 +15,14 @@ const socket = io(socketUrl, { transports: ['websocket'] });
 const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
-
-// *** REFERENCE THE ELEMENT FOR STATUS TEXT INSIDE THE RIGHT-SIDE CONTAINER ***
 const otherUserStatusElement = document.getElementById('other-user-status'); 
 const myUserIdDisplay = document.getElementById('my-user-id-display');
 const headerBar = document.getElementById('header-bar');
+
+// New DOM references for photo/video upload
+const fileInput = document.getElementById('file-input');
+const photoButton = document.getElementById('photo-button');
+
 
 // Selection UI Elements
 const initialSelectionArea = document.getElementById('initial-user-selection');
@@ -71,8 +73,32 @@ function addMessage(text, className, timestamp, messageId, status) {
         }
     }
 
+    // NEW LOGIC: Check if content is a media URL or text
+    let contentHTML;
+    if (text.startsWith('/uploads/')) {
+        const extension = text.split('.').pop().toLowerCase();
+        
+        // Check for common video extensions
+        if (['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(extension)) {
+            // If it's a video URL, use a <video> tag with controls
+            contentHTML = `<video src="${text}" class="chat-video" controls alt="Shared video"></video>`;
+        } 
+        // Check for common image extensions
+        else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) {
+            // If it's an image URL, use an <img> tag
+            contentHTML = `<img src="${text}" class="chat-image" alt="Shared photo">`;
+        }
+        // Fallback for unrecognized media type
+        else {
+            contentHTML = `<span class="message-text">Shared file: ${text.substring(text.lastIndexOf('/') + 1)}</span>`;
+        }
+    } else {
+        // Otherwise, use plain text
+        contentHTML = `<span class="message-text">${text}</span>`;
+    }
+
     item.innerHTML = `
-        <span class="message-text">${text}</span>
+        ${contentHTML}
         <span class="message-time">${time} ${statusIcon}</span>
     `;
     
@@ -83,7 +109,6 @@ function addMessage(text, className, timestamp, messageId, status) {
     messages.appendChild(item);
     messages.scrollTop = messages.scrollHeight;
     
-    // Only allow user 'x' to initiate deletion
     if (className === 'my-message' && MY_USER_ID === 'x' && messageId) {
         setupLongPressHandler(item, messageId);
     }
@@ -91,10 +116,6 @@ function addMessage(text, className, timestamp, messageId, status) {
     return item;
 }
 
-/**
- * Calculates and formats the time since the user was last online, 
- * providing the detailed duration requested by the user.
- */
 function formatLastSeen(timestamp) {
     if (!timestamp) return 'Offline';
     const now = new Date();
@@ -106,7 +127,7 @@ function formatLastSeen(timestamp) {
     } else if (diff < 3600000) {
         const minutes = Math.floor(diff / 60000);
         return `Last seen ${minutes} min ago`;
-    } else if (diff < 86400000) { // Less than 24 hours
+    } else if (diff < 86400000) { 
         const hours = Math.floor(diff / 3600000);
         return `Last seen ${hours} hr ago`;
     } else if (lastSeen.toDateString() === now.toDateString()) {
@@ -121,7 +142,7 @@ function requestUserId(userId) {
 }
 
 // ----------------------------------------------------------------------
-// --- USER SELECTION & UI MANAGEMENT (ONE-TIME CHOICE) ---
+// --- USER SELECTION & UI MANAGEMENT ---
 // ----------------------------------------------------------------------
 
 function finalizeUserSelection(userId) {
@@ -131,13 +152,11 @@ function finalizeUserSelection(userId) {
     selectionMade = true;
     myUserIdDisplay.textContent = MY_USER_ID;
 
-    // 1. Hide selection UI and show chat UI
     initialSelectionArea.style.display = 'none';
     headerBar.style.display = 'flex';
     form.style.display = 'flex';
     messages.innerHTML = ''; 
 
-    // 2. Request lock on the server
     requestUserId(MY_USER_ID); 
 }
 
@@ -170,7 +189,6 @@ function updateOtherUserStatus(statusMap) {
         otherUserStatusElement.textContent = 'Online';
         otherUserStatusElement.className = 'status-online';
     } else {
-        // Use the function to show detailed duration (hours, minutes, etc.)
         otherUserStatusElement.textContent = formatLastSeen(otherUser.lastSeen);
         otherUserStatusElement.className = 'status-offline';
     }
@@ -187,7 +205,6 @@ socket.on('user-lock-status', function(activeUsersMap) {
     const sendButton = form.querySelector('#send-button');
 
     if (!selectionMade) {
-        // Handle button state for initial selection
         ALL_USERS.forEach(id => {
             const isTaken = activeUsersMap.hasOwnProperty(id);
             const btn = document.getElementById(`select-user-${id}`);
@@ -249,6 +266,65 @@ socket.on('connect', () => {
 
 
 // ----------------------------------------------------------------------
+// --- PHOTO/VIDEO SENDING LOGIC ---
+// ----------------------------------------------------------------------
+
+// 1. Link the photo button to the hidden file input
+photoButton.addEventListener('click', () => {
+    if (MY_USER_ID === null) {
+        alert("Please select your user ID first.");
+        return;
+    }
+    fileInput.click(); 
+});
+
+// 2. Listen for file selection and handle upload
+fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!confirm(`Send file: ${file.name}?`)) {
+        fileInput.value = '';
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('image', file); // Use 'image' as the field name as expected by multer setup in index.js
+    formData.append('sender', MY_USER_ID);
+    
+    // Display a temporary local message
+    const tempId = Date.now();
+    addMessage(`[Sending File: ${file.name}...]`, 'my-message', new Date(), tempId, 'sent');
+    
+    try {
+        const response = await fetch('/upload', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (response.ok) {
+            // Server will handle broadcasting the message via Socket.IO after saving
+            console.log("File uploaded successfully. Waiting for broadcast.");
+            // Remove the temporary message (it will be replaced by the final broadcast message)
+            const tempMessageEl = document.querySelector(`.message-bubble[data-id="${tempId}"]`);
+            if (tempMessageEl) tempMessageEl.remove();
+
+        } else {
+            const errorData = await response.json();
+            console.error('File upload failed:', errorData.message);
+            alert(`File upload failed: ${errorData.message || 'Check server logs.'}`);
+            document.querySelector(`.message-bubble[data-id="${tempId}"] .message-text`).textContent = `[Failed to send file: ${file.name}]`;
+        }
+        
+    } catch (error) {
+        console.error('Network error during upload:', error);
+        alert('Network error during upload.');
+    }
+    
+    fileInput.value = ''; 
+});
+
+// ----------------------------------------------------------------------
 // --- DELETE/SELECTION LOGIC ---
 // ----------------------------------------------------------------------
 
@@ -293,12 +369,8 @@ document.getElementById('delete-selected-btn').addEventListener('click', () => {
 
 document.getElementById('cancel-selection-btn').addEventListener('click', clearSelection);
 
-/**
- * Sets up touch/mouse event listeners for long-press message selection.
- */
 function setupLongPressHandler(element, messageId) {
     const startPress = () => {
-        // Only start timer if action bar is NOT visible (to avoid interfering with deletion)
         if (!deleteActionBar.classList.contains('visible')) {
             pressTimer = setTimeout(() => {
                 toggleSelection(element, messageId);
@@ -311,7 +383,6 @@ function setupLongPressHandler(element, messageId) {
         pressTimer = null;
     };
     
-    // Clicking a message while in selection mode toggles selection
     element.addEventListener('click', (e) => {
         if (deleteActionBar.classList.contains('visible')) {
             e.preventDefault();
@@ -319,7 +390,6 @@ function setupLongPressHandler(element, messageId) {
         }
     });
 
-    // Touch/Mouse event handlers for long press
     element.addEventListener('touchstart', startPress);
     element.addEventListener('touchend', endPress);
     element.addEventListener('touchcancel', () => clearTimeout(pressTimer));
@@ -347,6 +417,7 @@ socket.on('history', function(messages) {
     document.getElementById('messages').innerHTML = ''; 
     messages.forEach(msg => {
         const type = (msg.sender === MY_USER_ID) ? 'my-message' : 'their-message';
+        // Display logic uses the full text/URL, addMessage handles rendering it as image, video, or text
         const display_text = (msg.sender === MY_USER_ID) ? msg.text : `${msg.sender}: ${msg.text}`;
         addMessage(display_text, type, msg.timestamp, msg._id, msg.status); 
     });
@@ -355,11 +426,11 @@ socket.on('history', function(messages) {
 
 socket.on('chat message', function(msgData) {
     const type = (msgData.sender === MY_USER_ID) ? 'my-message' : 'their-message';
+    // Display logic uses the full text/URL, addMessage handles rendering it as image, video, or text
     const display_text = (msgData.sender === MY_USER_ID) ? msgData.text : `${msgData.sender}: ${msgData.text}`;
     
-    const messageElement = addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
+    addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
     
-    // Auto-confirm delivery for received messages
     if (type === 'their-message') {
         socket.emit('message delivered', { messageId: msgData._id });
     }
