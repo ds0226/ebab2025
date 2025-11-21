@@ -15,10 +15,18 @@ const socket = io(socketUrl, { transports: ['websocket'] });
 const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
-const userSelector = document.getElementById('user-selector');
+
 const otherUserStatusElement = document.getElementById('other-user-status');
 const myUserIdDisplay = document.getElementById('my-user-id-display');
 const headerBar = document.getElementById('header-bar');
+
+// Selection UI Elements
+const initialSelectionArea = document.getElementById('initial-user-selection');
+const selectUserXBtn = document.getElementById('select-user-x');
+const selectUserIBtn = document.getElementById('select-user-i');
+
+
+// Delete Action Bar (Remains the same)
 const deleteActionBar = document.createElement('div'); 
 deleteActionBar.id = 'delete-action-bar';
 deleteActionBar.innerHTML = `
@@ -30,25 +38,22 @@ document.body.appendChild(deleteActionBar);
 
 const ALL_USERS = ['x', 'i'];
 
-let MY_USER_ID = userSelector ? userSelector.value : 'x'; 
+let MY_USER_ID = null; // User ID is null until selection is made
+let selectionMade = false; // Flag to enforce one-time selection
 
 let selectedMessages = [];
 let pressTimer = null;
 const LONG_PRESS_DURATION = 500; 
 
-myUserIdDisplay.textContent = MY_USER_ID;
 
 // ----------------------------------------------------------------------
-// --- MESSAGE HELPER FUNCTION (With Status Logic RESTORED) ---
+// --- CORE UI FUNCTIONS (addMessage, formatLastSeen, requestUserId) ---
 // ----------------------------------------------------------------------
 
-// 💥 MODIFIED: Accepts 'status'
 function addMessage(text, className, timestamp, messageId, status) { 
     const item = document.createElement('div');
-    
     const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     
-    // 💥 RESTORED: Status logic
     let statusIcon = '';
     if (className === 'my-message' && status) {
         if (status === 'read') {
@@ -79,8 +84,165 @@ function addMessage(text, className, timestamp, messageId, status) {
     return item;
 }
 
+function formatLastSeen(timestamp) {
+    // 💥 This logic provides the detailed offline duration as requested
+    if (!timestamp) return 'Offline';
+    const now = new Date();
+    const lastSeen = new Date(timestamp);
+    const diff = now - lastSeen; // difference in ms
+
+    if (diff < 60000) {
+        return 'Recently online';
+    } else if (diff < 3600000) {
+        const minutes = Math.floor(diff / 60000);
+        return `Last seen ${minutes} min ago`;
+    } else if (lastSeen.toDateString() === now.toDateString()) {
+        return `Last seen today at ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+        return `Last seen ${lastSeen.toLocaleDateString()} at ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+}
+
+function requestUserId(userId) {
+    socket.emit('set user', userId);
+}
+
 // ----------------------------------------------------------------------
-// --- DELETE/SELECTION LOGIC (WhatsApp Style) ---
+// --- NEW USER SELECTION & UI MANAGEMENT ---
+// ----------------------------------------------------------------------
+
+function finalizeUserSelection(userId) {
+    if (selectionMade || userId === null) return; 
+
+    MY_USER_ID = userId;
+    selectionMade = true;
+    myUserIdDisplay.textContent = MY_USER_ID;
+
+    // 1. Hide selection UI and show chat UI
+    initialSelectionArea.style.display = 'none';
+    headerBar.style.display = 'flex';
+    form.style.display = 'flex';
+    messages.innerHTML = ''; // Clear any messages from previous selection if any
+
+    // 2. Request lock on the server
+    requestUserId(MY_USER_ID); 
+}
+
+// Event listeners for the new buttons
+selectUserXBtn.addEventListener('click', function() {
+    finalizeUserSelection('x');
+});
+
+selectUserIBtn.addEventListener('click', function() {
+    finalizeUserSelection('i');
+});
+
+
+// ----------------------------------------------------------------------
+// --- STATUS & LOCK LOGIC (MODIFIED for Button UI) ---
+// ----------------------------------------------------------------------
+
+function updateOtherUserStatus(statusMap) {
+    if (MY_USER_ID === null) return; // Wait until a user is selected
+    
+    const otherUserId = ALL_USERS.find(user => user !== MY_USER_ID);
+    const otherUser = statusMap[otherUserId];
+
+    if (!otherUser) {
+        otherUserStatusElement.textContent = 'User unavailable';
+        otherUserStatusElement.className = 'status-offline';
+        return;
+    }
+
+    if (otherUser.online) {
+        otherUserStatusElement.textContent = 'Online';
+        otherUserStatusElement.className = 'status-online';
+    } else {
+        // Use the detailed formatLastSeen output
+        otherUserStatusElement.textContent = formatLastSeen(otherUser.lastSeen);
+        otherUserStatusElement.className = 'status-offline';
+    }
+}
+
+
+socket.on('online-status-update', function(statusMap) {
+    updateOtherUserStatus(statusMap);
+});
+
+
+socket.on('user-lock-status', function(activeUsersMap) {
+    
+    const sendButton = form.querySelector('#send-button');
+
+    if (!selectionMade) {
+        // Handle button state for initial selection
+        ALL_USERS.forEach(id => {
+            const isTaken = activeUsersMap.hasOwnProperty(id);
+            const btn = document.getElementById(`select-user-${id}`);
+            
+            if (btn) {
+                if (isTaken) {
+                    btn.disabled = true;
+                    btn.textContent = `User '${id}' is TAKEN`;
+                    btn.classList.add('taken');
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = `Chat as '${id}'`;
+                    btn.classList.remove('taken');
+                }
+            }
+        });
+        
+        // Ensure initial selection UI is visible
+        initialSelectionArea.style.display = 'flex';
+        headerBar.style.display = 'none';
+        form.style.display = 'none';
+        
+    } else if (MY_USER_ID !== null) {
+        // User is already selected, just manage lock status
+        
+        const myLockIsActive = activeUsersMap[MY_USER_ID] === socket.id;
+        
+        if (!myLockIsActive) {
+            console.error(`Error: User ID ${MY_USER_ID} was claimed by another connection.`);
+            sendButton.disabled = true;
+            input.disabled = true;
+        } else {
+            sendButton.disabled = false;
+            input.disabled = false;
+        }
+        
+        initialSelectionArea.style.display = 'none'; // Ensure selection UI is hidden
+        headerBar.style.display = 'flex'; // Ensure chat UI is visible
+        form.style.display = 'flex';
+    }
+});
+
+
+socket.on('user taken', function(data) {
+    // If the currently selected user is taken away (e.g., connection issue), alert and reset.
+    alert(`User ID '${data.userId}' is currently being used by another user. Cannot connect.`);
+    
+    // Clear the current user ID and reset selection
+    MY_USER_ID = null;
+    selectionMade = false;
+    myUserIdDisplay.textContent = 'N/A';
+    headerBar.style.display = 'none';
+    form.style.display = 'none';
+    initialSelectionArea.style.display = 'flex';
+});
+
+
+socket.on('connect', () => {
+    // Attempt to claim the ID only if it has been selected
+    if (MY_USER_ID !== null) {
+        requestUserId(MY_USER_ID); 
+    }
+});
+
+
+// ----------------------------------------------------------------------
+// --- DELETE/SELECTION LOGIC (Unchanged) ---
 // ----------------------------------------------------------------------
 
 function toggleSelection(element, messageId) {
@@ -104,7 +266,7 @@ function updateActionBar() {
         selectedCountSpan.textContent = `${count} selected`;
     } else {
         deleteActionBar.classList.remove('visible');
-        headerBar.style.display = 'flex';
+        if (selectionMade) { headerBar.style.display = 'flex'; }
     }
 }
 
@@ -124,7 +286,6 @@ document.getElementById('delete-selected-btn').addEventListener('click', () => {
 
 document.getElementById('cancel-selection-btn').addEventListener('click', clearSelection);
 
-
 function setupLongPressHandler(element, messageId) {
     const startPress = () => {
         if (!deleteActionBar.classList.contains('visible')) {
@@ -136,9 +297,6 @@ function setupLongPressHandler(element, messageId) {
 
     const endPress = () => {
         clearTimeout(pressTimer);
-        if (deleteActionBar.classList.contains('visible') && pressTimer !== null) {
-            // Allow tap to select after action bar is visible
-        }
         pressTimer = null;
     };
     
@@ -155,125 +313,7 @@ function setupLongPressHandler(element, messageId) {
 }
 
 // ----------------------------------------------------------------------
-// --- USER ASSIGNMENT & STATUS LOGIC (Preserved) ---
-// ----------------------------------------------------------------------
-
-function formatLastSeen(timestamp) {
-    if (!timestamp) return 'Offline';
-    const now = new Date();
-    const lastSeen = new Date(timestamp);
-    const diff = now - lastSeen;
-
-    if (diff < 60000) {
-        return 'Recently online';
-    } else if (diff < 3600000) {
-        const minutes = Math.floor(diff / 60000);
-        return `Last seen ${minutes} min ago`;
-    } else if (lastSeen.toDateString() === now.toDateString()) {
-        return `Last seen today at ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    } else {
-        return `Last seen ${lastSeen.toLocaleDateString()} at ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
-}
-
-function updateOtherUserStatus(statusMap) {
-    const otherUserId = ALL_USERS.find(user => user !== MY_USER_ID);
-    const otherUser = statusMap[otherUserId];
-
-    if (!otherUser) {
-        otherUserStatusElement.textContent = 'User unavailable';
-        otherUserStatusElement.className = 'status-offline';
-        return;
-    }
-
-    if (otherUser.online) {
-        otherUserStatusElement.textContent = 'Online';
-        otherUserStatusElement.className = 'status-online';
-    } else {
-        otherUserStatusElement.textContent = formatLastSeen(otherUser.lastSeen);
-        otherUserStatusElement.className = 'status-offline';
-    }
-}
-
-function requestUserId(userId) {
-    socket.emit('set user', userId);
-}
-
-if (userSelector) {
-    userSelector.addEventListener('change', function() {
-        const newUserId = this.value;
-        requestUserId(newUserId);
-    });
-}
-
-socket.on('online-status-update', function(statusMap) {
-    updateOtherUserStatus(statusMap);
-});
-
-
-socket.on('user-lock-status', function(activeUsersMap) {
-    let claimedByUser = false;
-    
-    Array.from(userSelector.options).forEach(option => {
-        const optionUserId = option.value;
-        const isTaken = activeUsersMap.hasOwnProperty(optionUserId);
-        
-        if (isTaken && activeUsersMap[optionUserId] !== socket.id) {
-            option.disabled = true;
-            option.textContent = `${optionUserId} (TAKEN)`;
-        } else {
-            option.disabled = false;
-            option.textContent = optionUserId;
-        }
-
-        if (optionUserId === userSelector.value && activeUsersMap[optionUserId] === socket.id) {
-            claimedByUser = true;
-        }
-    });
-
-    const sendButton = form.querySelector('#send-button');
-    
-    if (!claimedByUser) {
-        const availableOption = Array.from(userSelector.options).find(opt => !opt.disabled);
-        
-        if (availableOption) {
-            userSelector.value = availableOption.value;
-            MY_USER_ID = availableOption.value;
-            myUserIdDisplay.textContent = MY_USER_ID; 
-            requestUserId(MY_USER_ID);
-            sendButton.disabled = false; 
-            input.disabled = false;
-        } else {
-            sendButton.disabled = true;
-            input.disabled = true;
-        }
-    } else {
-        MY_USER_ID = userSelector.value;
-        myUserIdDisplay.textContent = MY_USER_ID; 
-        sendButton.disabled = false;
-        input.disabled = false;
-    }
-});
-
-
-socket.on('user taken', function(data) {
-    alert(`User ID '${data.userId}' is currently being used by another user. Please select the other ID.`);
-    
-    const availableOption = Array.from(userSelector.options).find(opt => !opt.disabled);
-
-    if (availableOption) {
-        userSelector.value = availableOption.value; 
-        MY_USER_ID = availableOption.value;
-    }
-});
-
-
-socket.on('connect', () => {
-    requestUserId(MY_USER_ID); 
-});
-
-// ----------------------------------------------------------------------
-// --- REAL-TIME SEND/RECEIVE & STATUS UPDATE LOGIC ---
+// --- REAL-TIME SEND/RECEIVE & STATUS UPDATE LOGIC (Unchanged) ---
 // ----------------------------------------------------------------------
 
 form.addEventListener('submit', function(e) {
@@ -295,7 +335,6 @@ socket.on('history', function(messages) {
     messages.forEach(msg => {
         const type = (msg.sender === MY_USER_ID) ? 'my-message' : 'their-message';
         const display_text = (msg.sender === MY_USER_ID) ? msg.text : `${msg.sender}: ${msg.text}`;
-        // 💥 MODIFIED: Pass status and _id
         addMessage(display_text, type, msg.timestamp, msg._id, msg.status); 
     });
 });
@@ -305,25 +344,18 @@ socket.on('chat message', function(msgData) {
     const type = (msgData.sender === MY_USER_ID) ? 'my-message' : 'their-message';
     const display_text = (msgData.sender === MY_USER_ID) ? msgData.text : `${msgData.sender}: ${msgData.text}`;
     
-    // 💥 MODIFIED: Pass status and _id
     addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
     
-    // 💥 RESTORED: If it's a message from the OTHER person, confirm delivery.
     if (type === 'their-message') {
         socket.emit('message delivered', { messageId: msgData._id });
-        
-        // Optional: Emit 'message read' when the user brings the window into focus
-        // window.addEventListener('focus', () => socket.emit('message read', { messageId: msgData._id }));
     }
 });
 
-// 💥 RESTORED: Handler for status updates broadcast from server
+
 socket.on('message status update', function(msgData) {
-    // Find the message bubble in the DOM by its data-id attribute
     const messageElement = document.querySelector(`.message-bubble[data-id="${msgData._id}"]`);
 
     if (messageElement && msgData.sender === MY_USER_ID) {
-        // Only update the status icon if it's MY message (I am the sender)
         const timeSpan = messageElement.querySelector('.message-time');
         
         if (timeSpan) {
@@ -336,7 +368,6 @@ socket.on('message status update', function(msgData) {
                 statusIcon = '<span class="status-sent">✓</span>'; 
             }
             
-            // Re-render the time span with the new status icon
             const time = new Date(msgData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             timeSpan.innerHTML = `${time} ${statusIcon}`;
         }

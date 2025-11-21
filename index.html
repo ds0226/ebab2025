@@ -8,15 +8,17 @@
 <body>
 <div id="chat-container">
     
+    <div id="initial-user-selection">
+        <h2>Choose your User ID to start:</h2>
+        <button id="select-user-x" data-user="x">Chat as 'x'</button>
+        <button id="select-user-i" data-user="i">Chat as 'i'</button>
+    </div>
+
     <div id="header-bar">
         <div id="user-info">
-            <h2 id="current-user-display">Chatting as: <span id="my-user-id-display">x</span></h2>
-            <p id="other-user-status" class="status-offline">Offline</p>
+            <h2 id="current-user-display">Chatting as: <span id="my-user-id-display">N/A</span></h2>
+            <p id="other-user-status" class="status-offline">Connecting...</p>
         </div>
-        <select id="user-selector"> 
-            <option value="x">x</option>
-            <option value="i">i</option>
-        </select>
     </div>
 
     <div id="messages"></div>
