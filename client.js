@@ -259,6 +259,7 @@ socket.on('user taken', function(data) {
 
 
 socket.on('connect', () => {
+    // CRITICAL: Re-establish user identity after a soft connection break
     if (MY_USER_ID !== null) {
         requestUserId(MY_USER_ID); 
     }

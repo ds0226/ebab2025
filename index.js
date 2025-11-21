@@ -10,7 +10,6 @@ const fs = require('fs');
 
 
 // --- MongoDB and Mongoose Integration ---
-// IMPORTANT: Replace the fallback URI with your secure URI if necessary.
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const uri = "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
@@ -97,7 +96,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 25 * 1024 * 1024 } // <-- UPDATED to 25MB limit
+    limits: { fileSize: 25 * 1024 * 1024 } // <-- 25MB limit
 });
 
 // --- EXPRESS SETUP ---
@@ -205,7 +204,8 @@ io.on('connection', async (socket) => {
 
 
   socket.on('chat message', async (msgData) => {
-    if (!socket.data.userId || socket.data.userId !== msgData.sender) {
+    // CRITICAL: Check if the sender is authorized with this socket
+    if (!socket.data.userId || socket.data.userId !== msgData.sender) { 
         console.warn(`Message blocked: Sender ${msgData.sender} is not authorized or assigned.`);
         return;
     }
