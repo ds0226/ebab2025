@@ -106,15 +106,16 @@ body {
     font-size: 15px;
     color: #E0E0E0;
     display: block; 
-    /* CHANGED: Decrease line-height for better vertical rhythm */
+    /* Line-height for condensed vertical spacing */
     line-height: 1.2; 
     white-space: pre-wrap; /* Ensures multiple lines/newlines are rendered */
 }
 
-/* NEW: Fixes indentation of multi-line text by ensuring the content is a block */
+/* FIX: Ensures the text content is a block, eliminates indentation, and removes margin */
 .message-bubble .message-text {
     display: block;
     line-height: inherit;
+    margin: 0; /* Ensures no extra vertical space around the text block */
 }
 
 /* New/Updated: Media styling inside a bubble */
