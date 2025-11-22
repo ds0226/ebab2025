@@ -98,7 +98,7 @@ body {
 /* 5. Message Bubbles */
 .message-bubble {
     position: relative; 
-    /* CRITICAL CHANGE: Reduced vertical padding (top and bottom) */
+    /* Vertical padding reduced to 4px top / 12px bottom */
     padding: 4px 12px 12px 12px; 
     border-radius: 8px; 
     margin-bottom: 9px;
@@ -115,8 +115,8 @@ body {
 /* FIX: Ensures the text content is a block, eliminates indentation, and provides TIGHT vertical packing */
 .message-bubble .message-text {
     display: block;
-    /* Aggressive line height for tight vertical packing */
-    line-height: 1.0; 
+    /* CRITICAL CHANGE: Absolute line height to match font size */
+    line-height: 14px; 
     margin: 0; 
     padding: 0; 
 }
