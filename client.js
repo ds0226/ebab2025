@@ -28,7 +28,7 @@ function setupUserSelection() {
 function startChat(selectedUser, otherUser) {
     currentUser = selectedUser;
     
-    // CRITICAL FIX: Hide the selection screen and show the chat interface
+    // Hide the selection screen and show the chat interface
     userSelectionScreen.style.display = 'none';
     chatContainer.style.display = 'flex';
     headerBar.style.display = 'flex';
@@ -44,15 +44,13 @@ function startChat(selectedUser, otherUser) {
         otherUserStatus.textContent = 'Online';
         otherUserStatus.className = 'status-online';
     }
-
-    // Load initial example messages for testing
-    loadExampleMessages();
 }
 
 // --- Message Rendering Logic ---
 
 // CRITICAL FUNCTION FOR TIGHT LINE SPACING: converts newlines to <br> tags
 function formatMessageContent(rawMessage) {
+    // Replaces all line breaks in the raw text with HTML <br> tags
     const htmlContent = rawMessage.replace(/\n/g, '<br>'); 
     return htmlContent;
 }
@@ -93,10 +91,22 @@ function appendMessage(messageData) {
     messages.scrollTop = messages.scrollHeight;
 }
 
-// --- Socket.IO Receive Handler ---
-// Listen for messages broadcasted from the server
+// --- Socket.IO Receive Handlers ---
+
+// Listen for the initial message history sent by the server
+socket.on('history', (history) => {
+    // Clear the chat interface before loading history
+    messages.innerHTML = '';
+    
+    // Append every message from the history array
+    history.forEach(msg => {
+        appendMessage(msg);
+    });
+});
+
+// Listen for new, real-time messages
 socket.on('chat message', (msg) => {
-    // When a message is received from the server, append it to the chat log
+    // This handles all new messages sent AFTER connection
     appendMessage(msg);
 });
 
@@ -105,13 +115,12 @@ socket.on('chat message', (msg) => {
 
 form.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (input.value) {
-        const messageText = input.value;
+    if (input.value.trim()) {
+        const messageText = input.value.trim();
         const now = new Date();
         const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         const messageData = {
-            // CRITICAL: Includes the sender ID for styling on all clients
             senderID: currentUser, 
             text: messageText,
             time: timeString
@@ -145,31 +154,5 @@ input.addEventListener('input', () => {
     autoResizeInput();
 });
 
-// --- Example Data for Layout Testing ---
-
-function loadExampleMessages() {
-    const exampleMessages = [
-        // Note: For example messages, use the senderID property
-        { senderID: 'i', text: 'This is a test message from i.', time: '10:00 AM' },
-        { senderID: 'x', text: 'Hey there! Message from x.', time: '10:01 AM' },
-        { 
-            senderID: 'i', 
-            text: "This is line one.\nThis is line two.\nThis is line three (from i).", 
-            time: '10:02 AM' 
-        },
-        { 
-            senderID: 'x', 
-            text: "Does this message wrap correctly?\nAnd is the vertical space tight now?\nWe are aiming for a compact look! (from x)", 
-            time: '10:03 AM' 
-        },
-        { senderID: 'i', text: 'Looking much better!', time: '10:05 AM' }
-    ];
-
-    exampleMessages.forEach(msg => {
-        appendMessage(msg);
-    });
-}
-
 // --- Initialize Application ---
-// This ensures that the button listeners are attached as soon as the HTML is loaded.
 document.addEventListener('DOMContentLoaded', setupUserSelection);
