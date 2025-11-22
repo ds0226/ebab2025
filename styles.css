@@ -98,10 +98,10 @@ body {
 /* 5. Message Bubbles */
 .message-bubble {
     position: relative; 
-    /* Vertical padding reduced to 4px top / 12px bottom */
-    padding: 4px 12px 12px 12px; 
+    /* Final reduced vertical padding: 3px top / 12px bottom */
+    padding: 3px 12px 12px 12px; 
     border-radius: 8px; 
-    /* CRITICAL CHANGE: Reduced margin between bubbles for a tighter list */
+    /* Reduced margin between bubbles for a tighter list */
     margin-bottom: 4px; 
     max-width: 85%; 
     word-wrap: break-word;
@@ -110,7 +110,7 @@ body {
     color: #E0E0E0;
     display: block; 
     line-height: 1.2; 
-    white-space: pre-wrap; /* Ensures multiple lines/newlines are rendered */
+    /* REMOVED: white-space: pre-wrap; is not needed if we use <br> tags in JS */
 }
 
 /* FIX: Ensures the text content is a block, eliminates indentation, and provides TIGHT vertical packing */

@@ -1,267 +1,161 @@
-const express = require('express');
-const app = express();
-const http = require('http');
-const server = http.createServer(app);
-const { Server } = require("socket.io");
-const path = require('path');
-const mongoose = require('mongoose');
-const multer = require('multer'); 
-const fs = require('fs'); 
+// --- Global Variables ---
+let currentUser = null;
+const messages = document.getElementById('messages');
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const chatContainer = document.getElementById('chat-container');
+const userSelectionScreen = document.getElementById('initial-user-selection');
+const myUserIdDisplay = document.getElementById('my-user-id-display');
+const otherUserStatus = document.getElementById('other-user-status');
+const headerBar = document.getElementById('header-bar');
+const sendButton = document.getElementById('send-button');
+const photoButton = document.getElementById('photo-button');
 
+// --- User Interface & Setup Logic ---
 
-// --- MongoDB and Mongoose Integration ---
-
-const { MongoClient, ServerApiVersion } = require('mongodb');
-const uri = "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
-});
-
-async function run() {
-  try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
-  }
-}
-run().catch(console.dir);
-
-mongoose.connect(uri)
-  .then(() => console.log('Successfully connected to MongoDB Atlas!'))
-  .catch(err => console.error('MongoDB connection error:', err));
-
-
-// Define the Message Schema and Model
-const MessageSchema = new mongoose.Schema({
-    sender: { type: String, required: true },
-    text: { type: String, required: true },
-    timestamp: { type: Date, default: Date.now },
-    status: { 
-        type: String, 
-        enum: ['sent', 'delivered', 'read'],
-        default: 'sent' 
-    }
-});
-
-const Message = mongoose.model('Message', MessageSchema);
-// ----------------------------------------
-
-// --- Socket.IO and CORS Configuration ---
-const externalUrl = process.env.RENDER_EXTERNAL_URL; 
-
-const io = new Server(server, {
-    cors: {
-        origin: externalUrl || "http://localhost:3000",
-        methods: ["GET", "POST"]
-    }
-});
-// ----------------------------------------
-
-// Global state for exclusive lock and last seen
-const activeUsers = {};
-const lastSeenTime = {};
-const ALL_USERS = ['x', 'i'];
-
-
-// --- FILE UPLOAD SETUP (MULTER) ---
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-
-// Create uploads directory if it doesn't exist (CRITICAL for Render)
-if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR);
+function setupUserSelection() {
+    document.getElementById('select-user-i').addEventListener('click', () => startChat('i', 'x'));
+    document.getElementById('select-user-x').addEventListener('click', () => startChat('x', 'i'));
 }
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, UPLOADS_DIR);
-    },
-    filename: (req, file, cb) => {
-        // Fix for undefined sender in filename: ensure senderId is defined
-        const senderId = req.body.sender || 'unknown'; 
-        
-        const ext = path.extname(file.originalname);
-        cb(null, senderId + '-' + Date.now() + ext); 
+function startChat(selectedUser, otherUser) {
+    currentUser = selectedUser;
+    userSelectionScreen.style.display = 'none';
+    chatContainer.style.display = 'flex';
+    headerBar.style.display = 'flex';
+    form.style.display = 'flex';
+    
+    myUserIdDisplay.textContent = currentUser;
+    
+    // Simple way to show who the other user is.
+    if (otherUser === 'i') {
+        otherUserStatus.textContent = 'Recently online';
+        otherUserStatus.className = 'status-offline'; // Using the 'offline' style for 'Recently online'
+    } else {
+        otherUserStatus.textContent = 'Online';
+        otherUserStatus.className = 'status-online';
     }
-});
 
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 25 * 1024 * 1024 } // <-- 25MB limit
-});
+    // Load initial example messages for testing the layout
+    loadExampleMessages();
+}
 
-// --- EXPRESS SETUP ---
-// Serve the static files (HTML, CSS, client.js)
-app.use(express.static(__dirname));
-// Serve files from the 'uploads' directory publicly (e.g., /uploads/image.jpg)
-app.use('/uploads', express.static(UPLOADS_DIR)); 
+// --- Message Rendering Logic ---
 
+// CRITICAL FUNCTION FOR TIGHT LINE SPACING
+function formatMessageContent(rawMessage) {
+    // 1. Convert ALL newline characters (\n) to <br> tags. 
+    // This allows the browser to use standard line breaks instead of pre-wrap blocks, 
+    // which fixes the line spacing issue.
+    const htmlContent = rawMessage.replace(/\n/g, '<br>'); 
+    return htmlContent;
+}
 
-// --- NEW UPLOAD API ROUTE ---
-app.post('/upload', upload.single('image'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).send({ message: 'No file uploaded.' });
+function createMessageElement(messageData) {
+    const li = document.createElement('li');
+    li.className = `message-bubble ${messageData.sender === currentUser ? 'my-message' : 'their-message'}`;
+    
+    // 1. Create the text content element
+    const textSpan = document.createElement('span');
+    textSpan.className = 'message-text';
+    
+    // 2. Use the formatter and innerHTML to render the text and <br> tags
+    textSpan.innerHTML = formatMessageContent(messageData.text); 
+    li.appendChild(textSpan);
+
+    // 3. Create the time and status container
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'message-time';
+    
+    timeSpan.textContent = messageData.time;
+
+    // 4. Add the status icon for "my-messages"
+    if (messageData.sender === currentUser) {
+        const statusSpan = document.createElement('span');
+        statusSpan.className = 'status-read'; // Assuming read status for demonstration
+        statusSpan.innerHTML = '✓✓';
+        timeSpan.appendChild(statusSpan);
     }
     
-    // The public URL for the file will be /uploads/filename.ext
-    const fileUrl = '/uploads/' + req.file.filename;
+    li.appendChild(timeSpan);
+    
+    return li;
+}
 
-    try {
-        // 1. Save the file URL as a new message in MongoDB
-        const newMessage = new Message({ 
-            sender: req.body.sender, 
-            text: fileUrl, // Store the URL in the 'text' field
-            status: 'sent' 
-        }); 
-        const savedMessage = await newMessage.save();
+function appendMessage(messageData) {
+    const messageElement = createMessageElement(messageData);
+    messages.appendChild(messageElement);
+    // Auto-scroll to the bottom of the chat
+    messages.scrollTop = messages.scrollHeight;
+}
 
-        // 2. Broadcast the message to all clients
-        io.emit('chat message', savedMessage); 
+// --- Form Submission Logic ---
 
-        res.status(200).send({ message: 'File uploaded and message sent.', url: fileUrl });
-    } catch (e) {
-        console.error("Error saving image message to DB:", e);
-        res.status(500).send({ message: 'Failed to save image reference to database.' });
-    }
-});
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value) {
+        const messageText = input.value;
+        const now = new Date();
+        const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-
-// --- ROOT ROUTE (unchanged) ---
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-
-// --- SOCKET.IO REAL-TIME LOGIC ---
-
-// Helper to broadcast the combined online status
-const broadcastOnlineStatus = () => {
-    const statusMap = {};
-    for (const userId of ALL_USERS) { 
-        const isOnline = activeUsers.hasOwnProperty(userId);
-        statusMap[userId] = {
-            online: isOnline,
-            lastSeen: lastSeenTime[userId] || null
+        const newMessage = {
+            sender: currentUser,
+            text: messageText,
+            time: timeString
         };
+
+        appendMessage(newMessage);
+        input.value = ''; // Clear input field
+        input.style.height = '44px'; // Reset textarea height
     }
-    io.emit('online-status-update', statusMap);
-};
-
-// Helper function to update status and broadcast
-const updateMessageStatus = async (messageId, newStatus) => {
-    try {
-        const updatedMessage = await Message.findByIdAndUpdate(
-            messageId,
-            { status: newStatus },
-            { new: true } 
-        );
-        if (updatedMessage) {
-            io.emit('message status update', updatedMessage);
-        }
-    } catch (error) {
-        console.error(`Error updating message status to ${newStatus}:`, error);
-    }
-};
-
-io.on('connection', async (socket) => {
-  console.log('A user connected');
-
-  socket.emit('user-lock-status', activeUsers);
-  broadcastOnlineStatus();
-
-  try {
-    const messages = await Message.find().sort({ timestamp: 1 }).limit(100);
-    socket.emit('history', messages); 
-  } catch (error) {
-    console.error("Error loading chat history:", error);
-  }
-
-  socket.on('set user', (userId) => {
-    if (!ALL_USERS.includes(userId)) return;
-    if (activeUsers[userId] && activeUsers[userId] !== socket.id) {
-        socket.emit('user taken', { userId: userId });
-        return;
-    }
-    const previousUserId = socket.data.userId;
-    if (previousUserId && activeUsers[previousUserId] === socket.id) {
-        delete activeUsers[previousUserId];
-        lastSeenTime[previousUserId] = Date.now();
-    }
-    activeUsers[userId] = socket.id;
-    socket.data.userId = userId;
-    io.emit('user-lock-status', activeUsers);
-    broadcastOnlineStatus();
-  });
-
-
-  socket.on('chat message', async (msgData) => {
-    // CRITICAL: Check if the sender is authorized with this socket
-    if (!socket.data.userId || socket.data.userId !== msgData.sender) { 
-        console.warn(`Message blocked: Sender ${msgData.sender} is not authorized or assigned.`);
-        return;
-    }
-    try {
-       const newMessage = new Message({ ...msgData, status: 'sent' }); 
-       const savedMessage = await newMessage.save();
-       io.emit('chat message', savedMessage); 
-    } catch (e) { 
-        console.error("Error saving message:", e); 
-    }
-  });
-
-  socket.on('message delivered', (data) => {
-      updateMessageStatus(data.messageId, 'delivered');
-  });
-
-  socket.on('message read', (data) => {
-      updateMessageStatus(data.messageId, 'read');
-  });
-  
-  socket.on('delete multiple messages', async (data) => {
-    const { messageIds, senderId } = data;
-    if (senderId !== 'x' || socket.data.userId !== 'x' || !Array.isArray(messageIds) || messageIds.length === 0) {
-        console.warn(`Deletion attempt blocked.`);
-        return;
-    }
-    try {
-        const result = await Message.deleteMany({ _id: { $in: messageIds } });
-        if (result.deletedCount > 0) {
-            io.emit('message deleted', { messageIds: messageIds });
-        }
-    } catch (error) {
-        console.error("Error deleting messages:", error);
-    }
-  });
-
-
-  socket.on('disconnect', () => {
-    const userId = socket.data.userId; 
-    if (userId && activeUsers[userId] === socket.id) {
-        delete activeUsers[userId];
-        lastSeenTime[userId] = Date.now();
-        io.emit('user-lock-status', activeUsers);
-        broadcastOnlineStatus();
-    }
-  });
 });
 
+// --- Textarea Auto-Resize and Send Button Toggle ---
 
-// --- Server Start Logic ---
+function autoResizeInput() {
+    // Reset height to determine scroll height accurately
+    input.style.height = '44px'; 
+    const scrollHeight = input.scrollHeight;
+    
+    // Only expand up to 120px (max-height set in CSS)
+    if (scrollHeight > 120) {
+        input.style.height = '120px';
+    } else {
+        input.style.height = scrollHeight + 'px';
+    }
+}
 
-const PORT = process.env.PORT || 3000;
-const HOST = '0.0.0.0'; 
-
-server.listen(PORT, HOST, () => { 
-  console.log(`Server running at http://${HOST}:${PORT}`);
-  console.log(`Live app URL: ${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}`);
+// Event listener for input changes to resize and check content
+input.addEventListener('input', () => {
+    autoResizeInput();
 });
+
+// --- Example Data for Layout Testing ---
+
+function loadExampleMessages() {
+    const exampleMessages = [
+        { sender: 'i', text: 'This is a test message.', time: '10:00 AM' },
+        { sender: 'x', text: 'Hey there! How is the layout looking?', time: '10:01 AM' },
+        // Multi-line test message using \n
+        { 
+            sender: 'i', 
+            text: "This is line one.\nThis is line two.\nThis is line three.", 
+            time: '10:02 AM' 
+        },
+        // Another multi-line test message
+        { 
+            sender: 'x', 
+            text: "Does this message wrap correctly?\nAnd is the vertical space tight now?\nWe are aiming for a compact look!", 
+            time: '10:03 AM' 
+        },
+        // Single line to ensure the bubble height looks right
+        { sender: 'i', text: 'Looking much better!', time: '10:05 AM' }
+    ];
+
+    exampleMessages.forEach(msg => {
+        appendMessage(msg);
+    });
+}
+
+// --- Initialize Application ---
+document.addEventListener('DOMContentLoaded', setupUserSelection);
