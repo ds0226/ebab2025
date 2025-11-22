@@ -4,7 +4,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
-const { MongoClient } = require('mongodb'); 
+// CRITICAL FIX: Combined import to include ServerApiVersion
+const { MongoClient, ServerApiVersion } = require('mongodb'); 
 
 const app = express();
 const server = http.createServer(app);
@@ -12,31 +13,8 @@ const port = process.env.PORT || 3000;
 
 const io = new Server(server); 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+// --- MongoDB Configuration ---
 const uri = "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
-});
-
-async function run() {
-  try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
-  }
-}
-run().catch(console.dir);
 const dbName = "chatAppDB"; 
 const collectionName = "messages";
 
@@ -44,10 +22,22 @@ let messagesCollection; // Global variable to hold the collection reference
 
 // --- MongoDB Connection Logic ---
 async function connectDB() {
-    const client = new MongoClient(uri);
+    // FIX: Using the MongoClient constructor with the specific options you defined
+    const client = new MongoClient(uri, {
+        serverApi: {
+            version: ServerApiVersion.v1,
+            strict: true,
+            deprecationErrors: true,
+        }
+    });
+
     try {
         await client.connect();
-        console.log("Successfully connected to MongoDB.");
+        
+        // FIX: The ping command you used is good for checking connectivity
+        await client.db("admin").command({ ping: 1 });
+        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        
         const db = client.db(dbName);
         messagesCollection = db.collection(collectionName);
         
@@ -71,7 +61,7 @@ function startServerLogic() {
 
         // 1. Load History: Retrieve all messages from the database
         try {
-            // Sort by time/creation date if possible, but for simplicity, we use the default order for now.
+            // Sort messages by _id which acts as an approximate creation timestamp
             const messagesHistory = await messagesCollection.find({}).toArray();
             socket.emit('history', messagesHistory);
         } catch (e) {
