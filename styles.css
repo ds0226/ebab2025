@@ -115,9 +115,10 @@ body {
 /* FIX: Ensures the text content is a block, eliminates indentation, and provides TIGHT vertical packing */
 .message-bubble .message-text {
     display: block;
-    /* CRITICAL CHANGE: Absolute line height to match font size */
+    /* Absolute line height to match font size */
     line-height: 14px; 
-    margin: 0; 
+    /* CRITICAL CHANGE: Negative margin bottom to compress space */
+    margin: 0 0 -2px 0; 
     padding: 0; 
 }
 
