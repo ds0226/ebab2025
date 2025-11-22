@@ -37,6 +37,7 @@ async function run() {
 }
 run().catch(console.dir);
 
+
 mongoose.connect(uri)
   .then(() => console.log('Successfully connected to MongoDB Atlas!'))
   .catch(err => console.error('MongoDB connection error:', err));

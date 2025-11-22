@@ -18,6 +18,7 @@ const messages = document.getElementById('messages');
 const otherUserStatusElement = document.getElementById('other-user-status'); 
 const myUserIdDisplay = document.getElementById('my-user-id-display');
 const headerBar = document.getElementById('header-bar');
+const sendButton = document.getElementById('send-button'); // Added direct reference
 
 // New DOM references for photo/video upload
 const fileInput = document.getElementById('file-input');
@@ -129,6 +130,7 @@ function addMessage(text, className, timestamp, messageId, status) {
     messages.appendChild(item);
     messages.scrollTop = messages.scrollHeight;
     
+    // Setup long press handler only for user 'x' messages (for deletion)
     if (className === 'my-message' && MY_USER_ID === 'x' && messageId) {
         setupLongPressHandler(item, messageId);
     }
@@ -257,7 +259,7 @@ socket.on('user-lock-status', function(activeUsersMap) {
         
         if (!myLockIsActive) {
             console.error(`Error: User ID ${MY_USER_ID} was claimed by another connection.`);
-            // NOTE: Removed sendButton/input disabling to stabilize UI against network blips.
+            // NOTE: UI is stabilized; we trust the initial enable on selection
         } 
         
         initialSelectionArea.style.display = 'none';
@@ -280,7 +282,7 @@ socket.on('user taken', function(data) {
 
 
 socket.on('connect', () => {
-    // CRITICAL: Re-establish user identity after a soft connection break (The primary fix)
+    // CRITICAL: Re-establish user identity after a soft connection break
     if (MY_USER_ID !== null) {
         requestUserId(MY_USER_ID); 
     }
@@ -417,7 +419,6 @@ function setupLongPressHandler(element, messageId) {
     element.addEventListener('touchcancel', () => clearTimeout(pressTimer));
 }
 
-// NOTE: Added function to easily select all messages for quick clearing
 function selectAllMyMessages() {
     clearSelection(); 
     
@@ -443,16 +444,15 @@ function selectAllMyMessages() {
 // --- REAL-TIME SEND/RECEIVE & STATUS UPDATE LOGIC ---
 // ----------------------------------------------------------------------
 
-// IMPORTANT: This listener now only handles clicks on the Send Button 
-// and ignores the Enter keypress to allow the <textarea> to insert new lines on mobile.
-form.addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    // Rely on the send button click (which triggers the form submit if it's the only action)
-    if (input.value && !form.querySelector('#send-button').disabled) {
-        sendMessage();
-    }
+// CRITICAL FIX: Direct listener for the Send Button click
+sendButton.addEventListener('click', function() {
+    sendMessage();
 });
+
+
+// NOTE: The form.addEventListener('submit', ...) block was intentionally removed
+// to ensure the mobile Enter key inserts a new line in the <textarea> 
+// instead of trying to submit the form.
 
 
 socket.on('history', function(messages) {
