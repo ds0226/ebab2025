@@ -1,4 +1,4 @@
-// client.js - Updated with Socket.IO
+// client.js - Handles client-side logic, including DOM manipulation and Socket.IO communication.
 
 // --- Global Variables and Socket Initialization ---
 // Initialize socket connection (it automatically connects to the server that served the page)
@@ -8,14 +8,50 @@ let currentUser = null;
 const messages = document.getElementById('messages');
 const form = document.getElementById('form');
 const input = document.getElementById('input');
-// ... (rest of the global variables)
+const chatContainer = document.getElementById('chat-container');
+const userSelectionScreen = document.getElementById('initial-user-selection');
+const myUserIdDisplay = document.getElementById('my-user-id-display');
+const otherUserStatus = document.getElementById('other-user-status');
+const headerBar = document.getElementById('header-bar');
+const sendButton = document.getElementById('send-button');
+const photoButton = document.getElementById('photo-button');
+
 
 // --- User Interface & Setup Logic ---
-// ... (setupUserSelection, startChat functions remain the same)
+
+function setupUserSelection() {
+    // Attach event listeners to the user selection buttons
+    document.getElementById('select-user-i').addEventListener('click', () => startChat('i', 'x'));
+    document.getElementById('select-user-x').addEventListener('click', () => startChat('x', 'i'));
+}
+
+function startChat(selectedUser, otherUser) {
+    currentUser = selectedUser;
+    
+    // CRITICAL FIX: Hide the selection screen and show the chat interface
+    userSelectionScreen.style.display = 'none';
+    chatContainer.style.display = 'flex';
+    headerBar.style.display = 'flex';
+    form.style.display = 'flex';
+    
+    myUserIdDisplay.textContent = currentUser;
+    
+    // Update the status of the other user
+    if (otherUser === 'i') {
+        otherUserStatus.textContent = 'Recently online';
+        otherUserStatus.className = 'status-offline'; 
+    } else {
+        otherUserStatus.textContent = 'Online';
+        otherUserStatus.className = 'status-online';
+    }
+
+    // Load initial example messages for testing
+    loadExampleMessages();
+}
 
 // --- Message Rendering Logic ---
 
-// CRITICAL FUNCTION FOR TIGHT LINE SPACING
+// CRITICAL FUNCTION FOR TIGHT LINE SPACING: converts newlines to <br> tags
 function formatMessageContent(rawMessage) {
     const htmlContent = rawMessage.replace(/\n/g, '<br>'); 
     return htmlContent;
@@ -23,7 +59,6 @@ function formatMessageContent(rawMessage) {
 
 function createMessageElement(messageData) {
     // Determine if the message was sent by the current user viewing the screen
-    // We use the 'senderID' property that we will add to the message data
     const isMyMessage = messageData.senderID === currentUser; 
 
     const li = document.createElement('li');
@@ -76,7 +111,7 @@ form.addEventListener('submit', (e) => {
         const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         const messageData = {
-            // CRITICAL: We now include the sender ID to correctly determine bubble style on all clients
+            // CRITICAL: Includes the sender ID for styling on all clients
             senderID: currentUser, 
             text: messageText,
             time: timeString
@@ -86,12 +121,55 @@ form.addEventListener('submit', (e) => {
         socket.emit('chat message', messageData); 
         
         input.value = ''; // Clear input field
-        input.style.height = '44px'; // Reset textarea height
+        autoResizeInput(); // Reset textarea height
     }
 });
 
-// --- Textarea Auto-Resize and Example Data functions remain the same ---
-// ... (autoResizeInput, loadExampleMessages, setupUserSelection)
+// --- Textarea Auto-Resize ---
+
+function autoResizeInput() {
+    // Reset height to determine scroll height accurately
+    input.style.height = '44px'; 
+    const scrollHeight = input.scrollHeight;
+    
+    // Only expand up to 120px (max-height set in CSS)
+    if (scrollHeight > 120) {
+        input.style.height = '120px';
+    } else {
+        input.style.height = scrollHeight + 'px';
+    }
+}
+
+// Event listener for input changes to resize
+input.addEventListener('input', () => {
+    autoResizeInput();
+});
+
+// --- Example Data for Layout Testing ---
+
+function loadExampleMessages() {
+    const exampleMessages = [
+        // Note: For example messages, use the senderID property
+        { senderID: 'i', text: 'This is a test message from i.', time: '10:00 AM' },
+        { senderID: 'x', text: 'Hey there! Message from x.', time: '10:01 AM' },
+        { 
+            senderID: 'i', 
+            text: "This is line one.\nThis is line two.\nThis is line three (from i).", 
+            time: '10:02 AM' 
+        },
+        { 
+            senderID: 'x', 
+            text: "Does this message wrap correctly?\nAnd is the vertical space tight now?\nWe are aiming for a compact look! (from x)", 
+            time: '10:03 AM' 
+        },
+        { senderID: 'i', text: 'Looking much better!', time: '10:05 AM' }
+    ];
+
+    exampleMessages.forEach(msg => {
+        appendMessage(msg);
+    });
+}
 
 // --- Initialize Application ---
+// This ensures that the button listeners are attached as soon as the HTML is loaded.
 document.addEventListener('DOMContentLoaded', setupUserSelection);
