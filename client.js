@@ -450,17 +450,17 @@ sendButton.addEventListener('click', function() {
 });
 
 
-// NOTE: The form.addEventListener('submit', ...) block was intentionally removed
-// to ensure the mobile Enter key inserts a new line in the <textarea> 
-// instead of trying to submit the form.
-
-
 socket.on('history', function(messages) {
     document.getElementById('messages').innerHTML = ''; 
     messages.forEach(msg => {
         const type = (msg.sender === MY_USER_ID) ? 'my-message' : 'their-message';
-        // Display logic uses the full text/URL, addMessage handles rendering it as image, video, or text
-        const display_text = (msg.sender === MY_USER_ID) ? msg.text : `${msg.sender}: ${msg.text}`;
+        // Display logic: only prefix regular text messages from the other user
+        let display_text = msg.text; 
+
+        if (type !== 'my-message' && !msg.text.startsWith('/uploads/')) {
+            display_text = `${msg.sender}: ${msg.text}`;
+        }
+        
         addMessage(display_text, type, msg.timestamp, msg._id, msg.status); 
     });
 });
@@ -468,8 +468,17 @@ socket.on('history', function(messages) {
 
 socket.on('chat message', function(msgData) {
     const type = (msgData.sender === MY_USER_ID) ? 'my-message' : 'their-message';
-    // Display logic uses the full text/URL, addMessage handles rendering it as image, video, or text
-    const display_text = (msgData.sender === MY_USER_ID) ? msgData.text : `${msgData.sender}: ${msgData.text}`;
+    
+    let display_text = msgData.text; // Start with the raw message content (text or /uploads/URL)
+    
+    // CRITICAL FIX: Only prefix the sender ID if it is NOT a media file
+    if (type !== 'my-message') {
+        if (!msgData.text.startsWith('/uploads/')) {
+            // It's a regular text message from the other user. Prefix it.
+            display_text = `${msgData.sender}: ${msgData.text}`;
+        }
+        // If it IS a media file, display_text remains the raw URL so addMessage can render it.
+    }
     
     addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
     

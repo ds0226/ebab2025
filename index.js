@@ -88,9 +88,12 @@ const storage = multer.diskStorage({
         cb(null, UPLOADS_DIR);
     },
     filename: (req, file, cb) => {
-        // Use a unique name: sender ID + timestamp + original extension
+        // CRITICAL FIX: Ensure senderId is defined before using it in the filename
+        const senderId = req.body.sender || 'unknown'; 
+        
         const ext = path.extname(file.originalname);
-        cb(null, req.body.sender + '-' + Date.now() + ext);
+        // Use the defined senderId here
+        cb(null, senderId + '-' + Date.now() + ext); 
     }
 });
 
