@@ -1,19 +1,12 @@
 {
-    "name": "two-person-chat",
-    "version": "1.0.0",
-    "description": "",
-    "main": "index.js",
-    "scripts": {
-        "start": "node index.js",
-        "test": "echo \"Error: no test specified\" && exit 1"
-    },
-    "dependencies": {
-        "express": "^4.19.2",
-        "socket.io": "^4.7.5",
-        "mongoose": "^8.4.1",
-        "multer": "^1.4.5-lts.1" 
-    },
-    "keywords": [],
-    "author": "",
-    "license": "ISC"
+  "name": "two-person-chat",
+  "version": "1.0.0",
+  "description": "Simple two-person chat interface",
+  "main": "server.js", 
+  "scripts": {
+    "start": "node server.js" 
+  },
+  "dependencies": {
+    "express": "^4.19.2" 
+  }
 }

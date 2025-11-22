@@ -1,5 +1,4 @@
 // server.js - A minimal server to serve static files
-
 const express = require('express');
 const path = require('path');
 const app = express();
