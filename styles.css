@@ -107,15 +107,16 @@ body {
     font-size: 15px;
     color: #E0E0E0;
     display: block; 
-    /* UPDATED: Slightly lower line-height for denser text */
-    line-height: 1.15; 
+    /* Kept low */
+    line-height: 1.2; 
     white-space: pre-wrap; /* Ensures multiple lines/newlines are rendered */
 }
 
-/* FIX: Ensures the text content is a block, eliminates indentation, and removes margin/padding */
+/* FIX: Ensures the text content is a block, eliminates indentation, and provides TIGHT vertical packing */
 .message-bubble .message-text {
     display: block;
-    line-height: inherit;
+    /* CRITICAL: Aggressive line height for tight vertical packing */
+    line-height: 1.1; 
     margin: 0; 
     padding: 0; 
 }
