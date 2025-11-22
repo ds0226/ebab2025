@@ -110,7 +110,7 @@ body {
     color: #E0E0E0;
     display: block; 
     line-height: 1.2; 
-    /* REMOVED: white-space: pre-wrap; is not needed if we use <br> tags in JS */
+    /* white-space: pre-wrap; is removed, we use <br> in JS */
 }
 
 /* FIX: Ensures the text content is a block, eliminates indentation, and provides TIGHT vertical packing */

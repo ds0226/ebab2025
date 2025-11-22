@@ -1,534 +1,160 @@
-// ** CLIENT-SIDE FILE: client.js **
-
-// ----------------------------------------------------------------------
-// --- SOCKET.IO CONNECTION & SETUP ---
-// ----------------------------------------------------------------------
-
-const RENDER_LIVE_URL = 'https://ebab2025.onrender.com'; 
-const socketUrl = (window.location.hostname === 'localhost') ? undefined : RENDER_LIVE_URL;
-const socket = io(socketUrl, { transports: ['websocket'] }); 
-
-// ----------------------------------------------------------------------
-// --- USER & DOM ELEMENTS ---
-// ----------------------------------------------------------------------
-
-const form = document.getElementById('form');
-const input = document.getElementById('input'); // This is now a <textarea>
+// --- Global Variables ---
+let currentUser = null;
 const messages = document.getElementById('messages');
-const otherUserStatusElement = document.getElementById('other-user-status'); 
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const chatContainer = document.getElementById('chat-container');
+const userSelectionScreen = document.getElementById('initial-user-selection');
 const myUserIdDisplay = document.getElementById('my-user-id-display');
+const otherUserStatus = document.getElementById('other-user-status');
 const headerBar = document.getElementById('header-bar');
-const sendButton = document.getElementById('send-button'); // Added direct reference
-
-// New DOM references for photo/video upload
-const fileInput = document.getElementById('file-input');
+const sendButton = document.getElementById('send-button');
 const photoButton = document.getElementById('photo-button');
 
+// --- User Interface & Setup Logic ---
 
-// Selection UI Elements
-const initialSelectionArea = document.getElementById('initial-user-selection');
-const selectUserXBtn = document.getElementById('select-user-x');
-const selectUserIBtn = document.getElementById('select-user-i');
-
-
-// Delete Action Bar (Created dynamically and appended to body)
-const deleteActionBar = document.createElement('div'); 
-deleteActionBar.id = 'delete-action-bar';
-deleteActionBar.innerHTML = `
-    <span id="selected-count">0 selected</span>
-    <button id="delete-selected-btn">Delete</button>
-    <button id="cancel-selection-btn">X</button>
-`;
-document.body.appendChild(deleteActionBar); 
-
-const ALL_USERS = ['x', 'i'];
-
-let MY_USER_ID = null; 
-let selectionMade = false; 
-
-let selectedMessages = [];
-let pressTimer = null;
-const LONG_PRESS_DURATION = 500; 
-
-// ----------------------------------------------------------------------
-// --- CORE UI FUNCTIONS ---
-// ----------------------------------------------------------------------
-
-/**
- * Helper function to send the message. Used by the Send Button click.
- */
-function sendMessage() {
-    // Trim whitespace only for the check, but send the full text
-    if (MY_USER_ID === null || input.value.trim().length === 0) {
-        input.value = ''; // Clear if it was only whitespace
-        return;
-    }
-
-    const msgData = {
-        sender: MY_USER_ID,
-        text: input.value // Send the raw value, preserving newlines
-    };
-    
-    socket.emit('chat message', msgData);
-    input.value = ''; // Clear the textarea
-    input.focus();
+function setupUserSelection() {
+    document.getElementById('select-user-i').addEventListener('click', () => startChat('i', 'x'));
+    document.getElementById('select-user-x').addEventListener('click', () => startChat('x', 'i'));
 }
 
-
-/**
- * Creates and appends a new message bubble to the chat.
- */
-function addMessage(text, className, timestamp, messageId, status) { 
-    const item = document.createElement('div');
-    const time = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-    
-    // Message Receipt Status Logic (WhatsApp style icons)
-    let statusIcon = '';
-    if (className === 'my-message' && status) {
-        if (status === 'read') {
-            statusIcon = '<span class="status-read">✓✓</span>'; 
-        } else if (status === 'delivered') {
-            statusIcon = '<span class="status-delivered">✓✓</span>';
-        } else {
-            statusIcon = '<span class="status-sent">✓</span>';
-        }
-    }
-
-    // NEW LOGIC: Check if content is a media URL or text
-    let contentHTML;
-    if (text.startsWith('/uploads/')) {
-        const extension = text.split('.').pop().toLowerCase();
-        
-        // 1. Check for common video extensions
-        if (['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(extension)) {
-            // If it's a video URL, use a <video> tag with controls
-            contentHTML = `<video src="${text}" class="chat-video" controls alt="Shared video"></video>`;
-        } 
-        // 2. Check for PDF extension
-        else if (extension === 'pdf') {
-            // If it's a PDF, render a link/icon for downloading/viewing
-            contentHTML = `
-                <a href="${text}" target="_blank" class="chat-pdf-link" style="color: white; text-decoration: none; display: flex; align-items: center; padding: 5px;">
-                    <span style="font-size: 2em; color: #E53935; margin-right: 10px;">📄</span>
-                    <span>Click to Open PDF</span>
-                </a>
-            `;
-        }
-        // 3. Check for common image extensions
-        else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) {
-            // If it's an image URL, use an <img> tag
-            contentHTML = `<img src="${text}" class="chat-image" alt="Shared photo">`;
-        }
-        // 4. Fallback for unrecognized media type
-        else {
-            contentHTML = `<span class="message-text">Shared file: ${text.substring(text.lastIndexOf('/') + 1)}</span>`;
-        }
-    } else {
-        // Otherwise, use plain text
-        // This is the span that the CSS rule targets to fix indentation
-        contentHTML = `<span class="message-text">${text}</span>`; 
-    }
-
-    item.innerHTML = `
-        ${contentHTML}
-        <span class="message-time">${time} ${statusIcon}</span>
-    `;
-    
-    item.classList.add('message-bubble', className);
-    
-    if (messageId) item.dataset.id = messageId;
-    
-    messages.appendChild(item);
-    messages.scrollTop = messages.scrollHeight;
-    
-    // Setup long press handler only for user 'x' messages (for deletion)
-    if (className === 'my-message' && MY_USER_ID === 'x' && messageId) {
-        setupLongPressHandler(item, messageId);
-    }
-    
-    return item;
-}
-
-function formatLastSeen(timestamp) {
-    if (!timestamp) return 'Offline';
-    const now = new Date();
-    const lastSeen = new Date(timestamp);
-    const diff = now - lastSeen; // difference in ms
-
-    if (diff < 60000) {
-        return 'Recently online';
-    } else if (diff < 3600000) {
-        const minutes = Math.floor(diff / 60000);
-        return `Last seen ${minutes} min ago`;
-    } else if (diff < 86400000) { 
-        const hours = Math.floor(diff / 3600000);
-        return `Last seen ${hours} hr ago`;
-    } else if (lastSeen.toDateString() === now.toDateString()) {
-        return `Last seen today at ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    } else {
-        return `Last seen ${lastSeen.toLocaleDateString()} at ${lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
-}
-
-function requestUserId(userId) {
-    socket.emit('set user', userId);
-}
-
-// ----------------------------------------------------------------------
-// --- USER SELECTION & UI MANAGEMENT ---
-// ----------------------------------------------------------------------
-
-function finalizeUserSelection(userId) {
-    if (selectionMade || userId === null) return; 
-
-    MY_USER_ID = userId;
-    selectionMade = true;
-    myUserIdDisplay.textContent = MY_USER_ID;
-
-    // Explicitly ensure elements are enabled after selection is made
-    const sendButton = document.getElementById('send-button');
-    const inputField = document.getElementById('input');
-    sendButton.disabled = false; 
-    inputField.disabled = false; 
-
-    initialSelectionArea.style.display = 'none';
+function startChat(selectedUser, otherUser) {
+    currentUser = selectedUser;
+    userSelectionScreen.style.display = 'none';
+    chatContainer.style.display = 'flex';
     headerBar.style.display = 'flex';
     form.style.display = 'flex';
-    messages.innerHTML = ''; 
-
-    requestUserId(MY_USER_ID); 
-}
-
-selectUserXBtn.addEventListener('click', function() {
-    finalizeUserSelection('x');
-});
-
-selectUserIBtn.addEventListener('click', function() {
-    finalizeUserSelection('i');
-});
-
-
-// ----------------------------------------------------------------------
-// --- STATUS & LOCK LOGIC ---
-// ----------------------------------------------------------------------
-
-function updateOtherUserStatus(statusMap) {
-    if (MY_USER_ID === null) return; 
     
-    const otherUserId = ALL_USERS.find(user => user !== MY_USER_ID);
-    const otherUser = statusMap[otherUserId];
-
-    if (!otherUser) {
-        otherUserStatusElement.textContent = 'User unavailable';
-        otherUserStatusElement.className = 'status-offline';
-        return;
-    }
-
-    if (otherUser.online) {
-        otherUserStatusElement.textContent = 'Online';
-        otherUserStatusElement.className = 'status-online';
+    myUserIdDisplay.textContent = currentUser;
+    
+    // Simple way to show who the other user is.
+    if (otherUser === 'i') {
+        otherUserStatus.textContent = 'Recently online';
+        otherUserStatus.className = 'status-offline'; // Using the 'offline' style for 'Recently online'
     } else {
-        otherUserStatusElement.textContent = formatLastSeen(otherUser.lastSeen);
-        otherUserStatusElement.className = 'status-offline';
+        otherUserStatus.textContent = 'Online';
+        otherUserStatus.className = 'status-online';
     }
+
+    // Load initial example messages for testing the layout
+    loadExampleMessages();
 }
 
+// --- Message Rendering Logic ---
 
-socket.on('online-status-update', function(statusMap) {
-    updateOtherUserStatus(statusMap);
-});
+// CRITICAL FUNCTION FOR TIGHT LINE SPACING
+function formatMessageContent(rawMessage) {
+    // 1. Convert ALL newline characters (\n) to <br> tags. 
+    // This allows the browser to use standard line breaks which are highly controllable by CSS line-height.
+    const htmlContent = rawMessage.replace(/\n/g, '<br>'); 
+    return htmlContent;
+}
 
-
-socket.on('user-lock-status', function(activeUsersMap) {
+function createMessageElement(messageData) {
+    const li = document.createElement('li');
+    li.className = `message-bubble ${messageData.sender === currentUser ? 'my-message' : 'their-message'}`;
     
-    // Check initial selection area
-    if (!selectionMade) {
-        ALL_USERS.forEach(id => {
-            const isTaken = activeUsersMap.hasOwnProperty(id);
-            const btn = document.getElementById(`select-user-${id}`);
-            
-            if (btn) {
-                if (isTaken) {
-                    btn.disabled = true;
-                    btn.textContent = `User '${id}' is TAKEN`;
-                    btn.classList.add('taken');
-                } else {
-                    btn.disabled = false;
-                    btn.textContent = `Chat as '${id}'`;
-                    btn.classList.remove('taken');
-                }
-            }
-        });
-        
-        initialSelectionArea.style.display = 'flex';
-        headerBar.style.display = 'none';
-        form.style.display = 'none';
-        
-    } else if (MY_USER_ID !== null) {
-        
-        const myLockIsActive = activeUsersMap[MY_USER_ID] === socket.id;
-        
-        if (!myLockIsActive) {
-            console.error(`Error: User ID ${MY_USER_ID} was claimed by another connection.`);
-            // NOTE: UI is stabilized; we trust the initial enable on selection
-        } 
-        
-        initialSelectionArea.style.display = 'none';
-        headerBar.style.display = 'flex';
-        form.style.display = 'flex';
+    // 1. Create the text content element
+    const textSpan = document.createElement('span');
+    textSpan.className = 'message-text';
+    
+    // 2. Use the formatter and innerHTML to render the text and <br> tags
+    textSpan.innerHTML = formatMessageContent(messageData.text); 
+    li.appendChild(textSpan);
+
+    // 3. Create the time and status container
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'message-time';
+    
+    timeSpan.textContent = messageData.time;
+
+    // 4. Add the status icon for "my-messages"
+    if (messageData.sender === currentUser) {
+        const statusSpan = document.createElement('span');
+        statusSpan.className = 'status-read'; // Assuming read status for demonstration
+        statusSpan.innerHTML = '✓✓';
+        timeSpan.appendChild(statusSpan);
+    }
+    
+    li.appendChild(timeSpan);
+    
+    return li;
+}
+
+function appendMessage(messageData) {
+    const messageElement = createMessageElement(messageData);
+    messages.appendChild(messageElement);
+    // Auto-scroll to the bottom of the chat
+    messages.scrollTop = messages.scrollHeight;
+}
+
+// --- Form Submission Logic ---
+
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value) {
+        const messageText = input.value;
+        const now = new Date();
+        const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const newMessage = {
+            sender: currentUser,
+            text: messageText,
+            time: timeString
+        };
+
+        appendMessage(newMessage);
+        input.value = ''; // Clear input field
+        input.style.height = '44px'; // Reset textarea height
     }
 });
 
+// --- Textarea Auto-Resize and Send Button Toggle ---
 
-socket.on('user taken', function(data) {
-    alert(`User ID '${data.userId}' is currently being used by another user. Cannot connect.`);
+function autoResizeInput() {
+    // Reset height to determine scroll height accurately
+    input.style.height = '44px'; 
+    const scrollHeight = input.scrollHeight;
     
-    MY_USER_ID = null;
-    selectionMade = false;
-    myUserIdDisplay.textContent = 'N/A';
-    headerBar.style.display = 'none';
-    form.style.display = 'none';
-    initialSelectionArea.style.display = 'flex';
-});
-
-
-socket.on('connect', () => {
-    // CRITICAL: Re-establish user identity after a soft connection break
-    if (MY_USER_ID !== null) {
-        requestUserId(MY_USER_ID); 
-    }
-});
-
-
-// ----------------------------------------------------------------------
-// --- PHOTO/VIDEO/PDF SENDING LOGIC ---
-// ----------------------------------------------------------------------
-
-// 1. Link the photo button to the hidden file input
-photoButton.addEventListener('click', () => {
-    if (MY_USER_ID === null) {
-        alert("Please select your user ID first.");
-        return;
-    }
-    fileInput.click(); 
-});
-
-// 2. Listen for file selection and handle upload
-fileInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!confirm(`Send file: ${file.name}?`)) {
-        fileInput.value = '';
-        return;
-    }
-    
-    const formData = new FormData();
-    formData.append('image', file); // Use 'image' as the field name as expected by multer setup in index.js
-    formData.append('sender', MY_USER_ID);
-    
-    // Display a temporary local message
-    const tempId = Date.now();
-    addMessage(`[Sending File: ${file.name}...]`, 'my-message', new Date(), tempId, 'sent');
-    
-    try {
-        const response = await fetch('/upload', {
-            method: 'POST',
-            body: formData,
-        });
-
-        if (response.ok) {
-            // Server will handle broadcasting the message via Socket.IO after saving
-            console.log("File uploaded successfully. Waiting for broadcast.");
-            // Remove the temporary message (it will be replaced by the final broadcast message)
-            const tempMessageEl = document.querySelector(`.message-bubble[data-id="${tempId}"]`);
-            if (tempMessageEl) tempMessageEl.remove();
-
-        } else {
-            const errorData = await response.json();
-            console.error('File upload failed:', errorData.message);
-            alert(`File upload failed: ${errorData.message || 'Check server logs.'}`);
-            document.querySelector(`.message-bubble[data-id="${tempId}"] .message-text`).textContent = `[Failed to send file: ${file.name}]`;
-        }
-        
-    } catch (error) {
-        console.error('Network error during upload:', error);
-        alert('Network error during upload.');
-    }
-    
-    fileInput.value = ''; 
-});
-
-// ----------------------------------------------------------------------
-// --- DELETE/SELECTION LOGIC ---
-// ----------------------------------------------------------------------
-
-function toggleSelection(element, messageId) {
-    if (element.classList.contains('selected')) {
-        element.classList.remove('selected');
-        selectedMessages = selectedMessages.filter(id => id !== messageId);
+    // Only expand up to 120px (max-height set in CSS)
+    if (scrollHeight > 120) {
+        input.style.height = '120px';
     } else {
-        element.classList.add('selected');
-        selectedMessages.push(messageId);
-    }
-    updateActionBar();
-}
-
-function updateActionBar() {
-    const count = selectedMessages.length;
-    const selectedCountSpan = document.getElementById('selected-count');
-    
-    if (count > 0) {
-        deleteActionBar.classList.add('visible');
-        headerBar.style.display = 'none';
-        selectedCountSpan.textContent = `${count} selected`;
-    } else {
-        deleteActionBar.classList.remove('visible');
-        if (selectionMade) { headerBar.style.display = 'flex'; }
+        input.style.height = scrollHeight + 'px';
     }
 }
 
-function clearSelection() {
-    document.querySelectorAll('.message-bubble.selected').forEach(el => el.classList.remove('selected'));
-    selectedMessages = [];
-    updateActionBar();
-}
-
-document.getElementById('delete-selected-btn').addEventListener('click', () => {
-    if (selectedMessages.length > 0) {
-        if (confirm(`Delete ${selectedMessages.length} message(s)?`)) {
-            socket.emit('delete multiple messages', { messageIds: selectedMessages, senderId: MY_USER_ID });
-        }
-    }
+// Event listener for input changes to resize and check content
+input.addEventListener('input', () => {
+    autoResizeInput();
 });
 
-document.getElementById('cancel-selection-btn').addEventListener('click', clearSelection);
+// --- Example Data for Layout Testing ---
 
-function setupLongPressHandler(element, messageId) {
-    const startPress = () => {
-        if (!deleteActionBar.classList.contains('visible')) {
-            pressTimer = setTimeout(() => {
-                toggleSelection(element, messageId);
-            }, LONG_PRESS_DURATION);
-        }
-    };
+function loadExampleMessages() {
+    const exampleMessages = [
+        { sender: 'i', text: 'This is a test message.', time: '10:00 AM' },
+        { sender: 'x', text: 'Hey there! How is the layout looking?', time: '10:01 AM' },
+        // Multi-line test message using \n
+        { 
+            sender: 'i', 
+            text: "This is line one.\nThis is line two.\nThis is line three.", 
+            time: '10:02 AM' 
+        },
+        // Another multi-line test message
+        { 
+            sender: 'x', 
+            text: "Does this message wrap correctly?\nAnd is the vertical space tight now?\nWe are aiming for a compact look!", 
+            time: '10:03 AM' 
+        },
+        // Single line to ensure the bubble height looks right
+        { sender: 'i', text: 'Looking much better!', time: '10:05 AM' }
+    ];
 
-    const endPress = () => {
-        clearTimeout(pressTimer);
-        pressTimer = null;
-    };
-    
-    element.addEventListener('click', (e) => {
-        if (deleteActionBar.classList.contains('visible')) {
-            e.preventDefault();
-            toggleSelection(element, messageId);
-        }
+    exampleMessages.forEach(msg => {
+        appendMessage(msg);
     });
-
-    element.addEventListener('touchstart', startPress);
-    element.addEventListener('touchend', endPress);
-    element.addEventListener('touchcancel', () => clearTimeout(pressTimer));
 }
 
-function selectAllMyMessages() {
-    clearSelection(); 
-    
-    if (MY_USER_ID !== 'x') {
-        alert("Only user 'x' can delete messages.");
-        return;
-    }
-
-    const allMessages = document.querySelectorAll('#messages .message-bubble.my-message, #messages .message-bubble.their-message');
-    
-    allMessages.forEach(item => {
-        const messageId = item.dataset.id;
-        if (messageId) {
-            item.classList.add('selected');
-            selectedMessages.push(messageId);
-        }
-    });
-    updateActionBar();
-}
-
-
-// ----------------------------------------------------------------------
-// --- REAL-TIME SEND/RECEIVE & STATUS UPDATE LOGIC ---
-// ----------------------------------------------------------------------
-
-// CRITICAL FIX: Direct listener for the Send Button click
-sendButton.addEventListener('click', function() {
-    sendMessage();
-});
-
-
-socket.on('history', function(messages) {
-    document.getElementById('messages').innerHTML = ''; 
-    messages.forEach(msg => {
-        const type = (msg.sender === MY_USER_ID) ? 'my-message' : 'their-message';
-        
-        let display_text = msg.text; 
-        
-        // Indentation Fix: No prefixing the sender ID.
-        
-        addMessage(display_text, type, msg.timestamp, msg._id, msg.status); 
-    });
-});
-
-
-socket.on('chat message', function(msgData) {
-    const type = (msgData.sender === MY_USER_ID) ? 'my-message' : 'their-message';
-    
-    let display_text = msgData.text; // Start with the raw message content (text or /uploads/URL)
-    
-    // Indentation Fix: No prefixing the sender ID.
-    
-    addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
-    
-    if (type === 'their-message') {
-        socket.emit('message delivered', { messageId: msgData._id });
-    }
-});
-
-
-socket.on('message status update', function(msgData) {
-    const messageElement = document.querySelector(`.message-bubble[data-id="${msgData._id}"]`);
-
-    if (messageElement && msgData.sender === MY_USER_ID) {
-        const timeSpan = messageElement.querySelector('.message-time');
-        
-        if (timeSpan) {
-            let statusIcon = '';
-            if (msgData.status === 'read') {
-                statusIcon = '<span class="status-read">✓✓</span>';
-            } else if (msgData.status === 'delivered') {
-                statusIcon = '<span class="status-delivered">✓✓</span>';
-            } else {
-                statusIcon = '<span class="status-sent">✓</span>'; 
-            }
-            
-            const time = new Date(msgData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            timeSpan.innerHTML = `${time} ${statusIcon}`;
-        }
-    }
-});
-
-
-socket.on('message deleted', function(data) {
-    if (data.messageIds) {
-        data.messageIds.forEach(id => {
-            const messageElement = document.querySelector(`.message-bubble[data-id="${id}"]`);
-            if (messageElement) {
-                messageElement.remove();
-            }
-        });
-        clearSelection();
-    }
-});
-
-// NOTE: Listener for the 'Select All' button (if added to index.html)
-document.addEventListener('DOMContentLoaded', () => {
-    const selectAllBtn = document.getElementById('select-all-btn');
-    if (selectAllBtn) {
-        selectAllBtn.addEventListener('click', selectAllMyMessages);
-    }
-});
+// --- Initialize Application ---
+document.addEventListener('DOMContentLoaded', setupUserSelection);
