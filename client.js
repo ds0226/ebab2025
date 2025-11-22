@@ -13,7 +13,7 @@ const socket = io(socketUrl, { transports: ['websocket'] });
 // ----------------------------------------------------------------------
 
 const form = document.getElementById('form');
-const input = document.getElementById('input');
+const input = document.getElementById('input'); // This is now a <textarea>
 const messages = document.getElementById('messages');
 const otherUserStatusElement = document.getElementById('other-user-status'); 
 const myUserIdDisplay = document.getElementById('my-user-id-display');
@@ -49,10 +49,30 @@ let selectedMessages = [];
 let pressTimer = null;
 const LONG_PRESS_DURATION = 500; 
 
-
 // ----------------------------------------------------------------------
 // --- CORE UI FUNCTIONS ---
 // ----------------------------------------------------------------------
+
+/**
+ * Helper function to send the message. Used by the Send Button click.
+ */
+function sendMessage() {
+    // Trim whitespace only for the check, but send the full text
+    if (MY_USER_ID === null || input.value.trim().length === 0) {
+        input.value = ''; // Clear if it was only whitespace
+        return;
+    }
+
+    const msgData = {
+        sender: MY_USER_ID,
+        text: input.value // Send the raw value, preserving newlines
+    };
+    
+    socket.emit('chat message', msgData);
+    input.value = ''; // Clear the textarea
+    input.focus();
+}
+
 
 /**
  * Creates and appends a new message bubble to the chat.
@@ -152,6 +172,12 @@ function finalizeUserSelection(userId) {
     selectionMade = true;
     myUserIdDisplay.textContent = MY_USER_ID;
 
+    // Explicitly ensure elements are enabled after selection is made
+    const sendButton = document.getElementById('send-button');
+    const inputField = document.getElementById('input');
+    sendButton.disabled = false; 
+    inputField.disabled = false; 
+
     initialSelectionArea.style.display = 'none';
     headerBar.style.display = 'flex';
     form.style.display = 'flex';
@@ -202,8 +228,7 @@ socket.on('online-status-update', function(statusMap) {
 
 socket.on('user-lock-status', function(activeUsersMap) {
     
-    const sendButton = form.querySelector('#send-button');
-
+    // Check initial selection area
     if (!selectionMade) {
         ALL_USERS.forEach(id => {
             const isTaken = activeUsersMap.hasOwnProperty(id);
@@ -232,12 +257,8 @@ socket.on('user-lock-status', function(activeUsersMap) {
         
         if (!myLockIsActive) {
             console.error(`Error: User ID ${MY_USER_ID} was claimed by another connection.`);
-            sendButton.disabled = true;
-            input.disabled = true;
-        } else {
-            sendButton.disabled = false;
-            input.disabled = false;
-        }
+            // NOTE: Removed sendButton/input disabling to stabilize UI against network blips.
+        } 
         
         initialSelectionArea.style.display = 'none';
         headerBar.style.display = 'flex';
@@ -396,22 +417,40 @@ function setupLongPressHandler(element, messageId) {
     element.addEventListener('touchcancel', () => clearTimeout(pressTimer));
 }
 
+// NOTE: Added function to easily select all messages for quick clearing
+function selectAllMyMessages() {
+    clearSelection(); 
+    
+    if (MY_USER_ID !== 'x') {
+        alert("Only user 'x' can delete messages.");
+        return;
+    }
+
+    const allMessages = document.querySelectorAll('#messages .message-bubble.my-message, #messages .message-bubble.their-message');
+    
+    allMessages.forEach(item => {
+        const messageId = item.dataset.id;
+        if (messageId) {
+            item.classList.add('selected');
+            selectedMessages.push(messageId);
+        }
+    });
+    updateActionBar();
+}
+
+
 // ----------------------------------------------------------------------
 // --- REAL-TIME SEND/RECEIVE & STATUS UPDATE LOGIC ---
 // ----------------------------------------------------------------------
 
-// This listener handles both clicking the Send button (which is now type="button") 
-// and pressing the Enter key inside the input field.
+// IMPORTANT: This listener now only handles clicks on the Send Button 
+// and ignores the Enter keypress to allow the <textarea> to insert new lines on mobile.
 form.addEventListener('submit', function(e) {
     e.preventDefault();
+    
+    // Rely on the send button click (which triggers the form submit if it's the only action)
     if (input.value && !form.querySelector('#send-button').disabled) {
-        const msgData = {
-            sender: MY_USER_ID,
-            text: input.value
-        };
-        
-        socket.emit('chat message', msgData);
-        input.value = '';
+        sendMessage();
     }
 });
 
@@ -472,5 +511,13 @@ socket.on('message deleted', function(data) {
             }
         });
         clearSelection();
+    }
+});
+
+// NOTE: Listener for the 'Select All' button (if added to index.html)
+document.addEventListener('DOMContentLoaded', () => {
+    const selectAllBtn = document.getElementById('select-all-btn');
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', selectAllMyMessages);
     }
 });

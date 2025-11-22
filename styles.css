@@ -107,6 +107,7 @@ body {
     color: #E0E0E0;
     display: block; 
     line-height: 1.3;
+    white-space: pre-wrap; /* Ensures multiple lines/newlines are rendered */
 }
 
 /* New/Updated: Media styling inside a bubble */
@@ -216,7 +217,7 @@ body {
     background-color: #111B21; 
     padding: 8px;
     display: flex;
-    align-items: center;
+    align-items: flex-end; /* CRITICAL: Aligns items to the bottom, allowing textarea to grow up */
     border-top: 1px solid #1F2C34;
     flex-shrink: 0;
     display: none; 
@@ -243,16 +244,26 @@ body {
     height: 24px;
 }
 
-/* Text Input */
+/* Textarea Input (UPDATED STYLES) */
 #input {
     flex-grow: 1;
     background: #2C343F; 
     color: #FFFFFF;
     border: none; 
     padding: 10px 15px;
-    border-radius: 25px;
+    border-radius: 20px; /* Slightly smaller radius for multi-line box */
     margin-right: 8px;
     font-size: 16px; 
+    
+    /* NEW STYLES for textarea */
+    resize: none; 
+    max-height: 120px; /* Max height before scroll bar appears */
+    overflow-y: auto; 
+    line-height: 1.4;
+    box-sizing: border-box; 
+    align-self: stretch; 
+    height: 44px; /* Set a minimum height matching the button */
+    min-height: 44px;
 }
 
 #input:focus {
@@ -270,6 +281,8 @@ body {
     justify-content: center;
     align-items: center;
     cursor: pointer;
+    /* Aligns the button to the bottom of the form */
+    align-self: flex-end; 
 }
 
 #send-button svg {
