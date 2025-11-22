@@ -125,7 +125,8 @@ function addMessage(text, className, timestamp, messageId, status) {
         }
     } else {
         // Otherwise, use plain text
-        contentHTML = `<span class="message-text">${text}</span>`;
+        // This is the span that the CSS rule targets to fix indentation
+        contentHTML = `<span class="message-text">${text}</span>`; 
     }
 
     item.innerHTML = `
@@ -467,8 +468,7 @@ socket.on('history', function(messages) {
         
         let display_text = msg.text; 
         
-        // FIX: Removed sender ID prefix for history loading to eliminate indentation.
-        // display_text remains msg.text for both media and regular text.
+        // Indentation Fix: No prefixing the sender ID.
         
         addMessage(display_text, type, msg.timestamp, msg._id, msg.status); 
     });
@@ -480,8 +480,7 @@ socket.on('chat message', function(msgData) {
     
     let display_text = msgData.text; // Start with the raw message content (text or /uploads/URL)
     
-    // FIX: Removed sender ID prefix for real-time messages to eliminate indentation.
-    // display_text remains msgData.text for both media and regular text.
+    // Indentation Fix: No prefixing the sender ID.
     
     addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
     

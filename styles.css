@@ -110,6 +110,12 @@ body {
     white-space: pre-wrap; /* Ensures multiple lines/newlines are rendered */
 }
 
+/* NEW: Fixes indentation of multi-line text by ensuring the content is a block */
+.message-bubble .message-text {
+    display: block;
+    line-height: inherit;
+}
+
 /* New/Updated: Media styling inside a bubble */
 .message-bubble .chat-image,
 .message-bubble .chat-video { 
