@@ -99,17 +99,27 @@ function addMessage(text, className, timestamp, messageId, status) {
     if (text.startsWith('/uploads/')) {
         const extension = text.split('.').pop().toLowerCase();
         
-        // Check for common video extensions
+        // 1. Check for common video extensions
         if (['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(extension)) {
             // If it's a video URL, use a <video> tag with controls
             contentHTML = `<video src="${text}" class="chat-video" controls alt="Shared video"></video>`;
         } 
-        // Check for common image extensions
+        // 2. Check for PDF extension
+        else if (extension === 'pdf') {
+            // If it's a PDF, render a link/icon for downloading/viewing
+            contentHTML = `
+                <a href="${text}" target="_blank" class="chat-pdf-link" style="color: white; text-decoration: none; display: flex; align-items: center; padding: 5px;">
+                    <span style="font-size: 2em; color: #E53935; margin-right: 10px;">📄</span>
+                    <span>Click to Open PDF</span>
+                </a>
+            `;
+        }
+        // 3. Check for common image extensions
         else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension)) {
             // If it's an image URL, use an <img> tag
             contentHTML = `<img src="${text}" class="chat-image" alt="Shared photo">`;
         }
-        // Fallback for unrecognized media type
+        // 4. Fallback for unrecognized media type
         else {
             contentHTML = `<span class="message-text">Shared file: ${text.substring(text.lastIndexOf('/') + 1)}</span>`;
         }
@@ -290,7 +300,7 @@ socket.on('connect', () => {
 
 
 // ----------------------------------------------------------------------
-// --- PHOTO/VIDEO SENDING LOGIC ---
+// --- PHOTO/VIDEO/PDF SENDING LOGIC ---
 // ----------------------------------------------------------------------
 
 // 1. Link the photo button to the hidden file input
@@ -454,12 +464,11 @@ socket.on('history', function(messages) {
     document.getElementById('messages').innerHTML = ''; 
     messages.forEach(msg => {
         const type = (msg.sender === MY_USER_ID) ? 'my-message' : 'their-message';
-        // Display logic: only prefix regular text messages from the other user
+        
         let display_text = msg.text; 
-
-        if (type !== 'my-message' && !msg.text.startsWith('/uploads/')) {
-            display_text = `${msg.sender}: ${msg.text}`;
-        }
+        
+        // FIX: Removed sender ID prefix for history loading to eliminate indentation.
+        // display_text remains msg.text for both media and regular text.
         
         addMessage(display_text, type, msg.timestamp, msg._id, msg.status); 
     });
@@ -471,14 +480,8 @@ socket.on('chat message', function(msgData) {
     
     let display_text = msgData.text; // Start with the raw message content (text or /uploads/URL)
     
-    // CRITICAL FIX: Only prefix the sender ID if it is NOT a media file
-    if (type !== 'my-message') {
-        if (!msgData.text.startsWith('/uploads/')) {
-            // It's a regular text message from the other user. Prefix it.
-            display_text = `${msgData.sender}: ${msgData.text}`;
-        }
-        // If it IS a media file, display_text remains the raw URL so addMessage can render it.
-    }
+    // FIX: Removed sender ID prefix for real-time messages to eliminate indentation.
+    // display_text remains msgData.text for both media and regular text.
     
     addMessage(display_text, type, msgData.timestamp, msgData._id, msgData.status); 
     

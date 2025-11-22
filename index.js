@@ -10,32 +10,7 @@ const fs = require('fs');
 
 
 // --- MongoDB and Mongoose Integration ---
-
-const { MongoClient, ServerApiVersion } = require('mongodb');
-const uri = "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
-});
-
-async function run() {
-  try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
-  }
-}
-run().catch(console.dir);
+const uri = process.env.MONGO_URI || "mongodb+srv://david26:davien1130@ebab.w90ig5m.mongodb.net/?appName=EBAB";
 
 
 mongoose.connect(uri)
@@ -88,11 +63,10 @@ const storage = multer.diskStorage({
         cb(null, UPLOADS_DIR);
     },
     filename: (req, file, cb) => {
-        // CRITICAL FIX: Ensure senderId is defined before using it in the filename
+        // Fix for undefined sender in filename: ensure senderId is defined
         const senderId = req.body.sender || 'unknown'; 
         
         const ext = path.extname(file.originalname);
-        // Use the defined senderId here
         cb(null, senderId + '-' + Date.now() + ext); 
     }
 });
