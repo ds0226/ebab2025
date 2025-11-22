@@ -101,7 +101,8 @@ body {
     /* Vertical padding reduced to 4px top / 12px bottom */
     padding: 4px 12px 12px 12px; 
     border-radius: 8px; 
-    margin-bottom: 9px;
+    /* CRITICAL CHANGE: Reduced margin between bubbles for a tighter list */
+    margin-bottom: 4px; 
     max-width: 85%; 
     word-wrap: break-word;
     /* Smaller font size */
@@ -117,7 +118,7 @@ body {
     display: block;
     /* Absolute line height to match font size */
     line-height: 14px; 
-    /* CRITICAL CHANGE: Increased negative margin bottom to compress space */
+    /* Extreme negative margin bottom to compress space */
     margin: 0 0 -4px 0; 
     padding: 0; 
 }
