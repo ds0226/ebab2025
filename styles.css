@@ -98,7 +98,8 @@ body {
 /* 5. Message Bubbles */
 .message-bubble {
     position: relative; 
-    padding: 8px 12px 20px 12px; 
+    /* UPDATED: Reduced bottom padding to 16px */
+    padding: 8px 12px 16px 12px; 
     border-radius: 8px; 
     margin-bottom: 9px;
     max-width: 85%; 
@@ -106,16 +107,17 @@ body {
     font-size: 15px;
     color: #E0E0E0;
     display: block; 
-    /* Line-height for condensed vertical spacing */
-    line-height: 1.2; 
+    /* UPDATED: Slightly lower line-height for denser text */
+    line-height: 1.15; 
     white-space: pre-wrap; /* Ensures multiple lines/newlines are rendered */
 }
 
-/* FIX: Ensures the text content is a block, eliminates indentation, and removes margin */
+/* FIX: Ensures the text content is a block, eliminates indentation, and removes margin/padding */
 .message-bubble .message-text {
     display: block;
     line-height: inherit;
-    margin: 0; /* Ensures no extra vertical space around the text block */
+    margin: 0; 
+    padding: 0; 
 }
 
 /* New/Updated: Media styling inside a bubble */
