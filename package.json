@@ -1,12 +1,13 @@
 {
   "name": "two-person-chat",
   "version": "1.0.0",
-  "description": "Simple two-person chat interface",
-  "main": "server.js", 
+  "description": "Simple two-person chat interface with WhatsApp dark theme styling.",
+  "main": "server.js",
   "scripts": {
-    "start": "node server.js" 
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2" 
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
   }
 }
