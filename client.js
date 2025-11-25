@@ -47,7 +47,7 @@ function createMessageElement(messageData) {
 
     // Status Checkmarks (Only for 'my-message')
     if (isMyMessage) {
-        // Placeholder for single tick (Sent)
+        // Placeholder for double tick (Sent/Read)
         const statusSpan = document.createElement('span');
         statusSpan.classList.add('status-sent', 'status-read'); // Using 'status-read' class for final look
         statusSpan.innerHTML = '✓✓'; // Double checkmark icon
@@ -100,4 +100,62 @@ socket.on('available users', (inUseList) => {
         const otherUser = currentUser === 'i' ? 'x' : 'i';
         const isOtherUserOnline = inUseList.includes(otherUser);
         
-        otherUserStatus.textContent = isOtherUserOnline ? 'Online
+        otherUserStatus.textContent = isOtherUserOnline ? 'Online' : 'Recently online';
+        otherUserStatus.className = isOtherUserOnline ? 'status-online' : 'status-offline';
+    }
+}); // <-- MISSING CLOSING BRACKET WAS HERE
+
+// 4. Handle server response after attempting to select a user (CRITICAL MISSING PART)
+socket.on('user selected', (success) => {
+    if (success) {
+        // Successful login: Hide selection, show chat UI
+        selectionScreen.style.display = 'none';
+        headerBar.style.display = 'flex';
+        form.style.display = 'flex';
+        chatContainer.style.display = 'flex';
+        currentUserDisplay.textContent = currentUser;
+        input.focus();
+    } else {
+        // Failed login (user taken)
+        currentUser = null;
+        alert('User is already selected by another client.');
+        // Re-enable the button that was just clicked
+        document.querySelectorAll('#initial-user-selection button').forEach(btn => {
+            if (btn.dataset.user === currentUser) btn.disabled = false;
+        });
+    }
+});
+
+
+// --- Initial Setup and Event Handlers ---
+
+// Handle the chat message form submission
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value && currentUser) {
+        const messageData = {
+            senderID: currentUser, // Use the ID the client selected
+            message: input.value,
+            timestamp: new Date().toISOString()
+        };
+        
+        socket.emit('chat message', messageData);
+        input.value = '';
+    }
+});
+
+// Handle the initial user selection (CRITICAL MISSING PART)
+document.querySelectorAll('#initial-user-selection button').forEach(button => {
+    button.addEventListener('click', () => {
+        const userId = button.dataset.user;
+        
+        // 1. Optimistically set the current user
+        currentUser = userId;
+
+        // 2. Disable all buttons temporarily (until server confirms)
+        document.querySelectorAll('#initial-user-selection button').forEach(btn => btn.disabled = true);
+
+        // 3. Send selection request to server
+        socket.emit('select user', userId);
+    });
+});
