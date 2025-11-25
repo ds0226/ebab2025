@@ -5,6 +5,8 @@ const socket = io();
 
 let currentUser = null;
 let requestedUser = null; // Stores the user the client tried to select
+
+// Element references (CRITICAL: Ensure these IDs match index.html exactly)
 const messages = document.getElementById('messages');
 const form = document.getElementById('form');
 const input = document.getElementById('input');
@@ -13,7 +15,8 @@ const userSelectionScreen = document.getElementById('initial-user-selection');
 const myUserIdDisplay = document.getElementById('my-user-id-display');
 const otherUserStatus = document.getElementById('other-user-status');
 const headerBar = document.getElementById('header-bar');
-// CRITICAL: Ensure these IDs match your HTML
+
+// Button references for user exclusivity feature
 const selectUserIButton = document.getElementById('select-user-i'); 
 const selectUserXButton = document.getElementById('select-user-x'); 
 const sendButton = document.getElementById('send-button');
@@ -23,14 +26,17 @@ const photoButton = document.getElementById('photo-button');
 // --- User Interface & Setup Logic ---
 
 function setupUserSelection() {
-    // Attach event listeners to the user selection buttons
-    selectUserIButton.addEventListener('click', () => requestUserSelection('i', 'x'));
-    selectUserXButton.addEventListener('click', () => requestUserSelection('x', 'i'));
+    // CRITICAL FIX: Only attach listeners if the buttons exist.
+    if (selectUserIButton && selectUserXButton) {
+        selectUserIButton.addEventListener('click', () => requestUserSelection('i', 'x'));
+        selectUserXButton.addEventListener('click', () => requestUserSelection('x', 'i'));
+    } else {
+        console.error("User selection buttons not found in HTML. Check index.html IDs.");
+    }
 }
 
 // Requests a user ID from the server
 function requestUserSelection(selectedUser, otherUser) {
-    // Store the request state before sending
     requestedUser = { selectedUser, otherUser };
     socket.emit('select user', selectedUser);
     
@@ -39,7 +45,7 @@ function requestUserSelection(selectedUser, otherUser) {
     selectUserXButton.disabled = true;
 }
 
-// Updates the UI based on which users are taken
+// Updates the UI based on which users are taken (broadcast from server)
 function updateAvailableUsers(inUseList) {
     selectUserIButton.disabled = inUseList.includes('i');
     selectUserXButton.disabled = inUseList.includes('x');
@@ -50,19 +56,21 @@ function updateAvailableUsers(inUseList) {
 }
 
 
-// CRITICAL: This is the function that should hide the selection screen and show the chat.
+// Starts chat and hides the selection screen
 function startChat(selectedUser, otherUser) {
     currentUser = selectedUser;
     
-    // Check if these elements exist and are correctly identified.
-    userSelectionScreen.style.display = 'none'; // HIDES THE SELECTION SCREEN
-    chatContainer.style.display = 'flex';       // SHOWS THE CHAT AREA
+    // Hide the selection screen and show the chat container
+    userSelectionScreen.style.display = 'none'; 
+    chatContainer.style.display = 'flex';       
     headerBar.style.display = 'flex';
     form.style.display = 'flex';
     
     myUserIdDisplay.textContent = currentUser;
     
     // Update the status of the other user
+    // Note: True "Online" status requires additional complex logic we haven't implemented, 
+    // so we set the status based on the selected user for visual continuity.
     if (otherUser === 'i') {
         otherUserStatus.textContent = 'Recently online';
         otherUserStatus.className = 'status-offline'; 
@@ -73,7 +81,8 @@ function startChat(selectedUser, otherUser) {
 }
 
 // --- Message Rendering Logic ---
-// ... (formatMessageContent, createMessageElement, appendMessage functions remain the same) ...
+
+// Handles multiline messages for display
 function formatMessageContent(rawMessage) {
     const htmlContent = rawMessage.replace(/\n/g, '<br>'); 
     return htmlContent;
@@ -90,10 +99,12 @@ function createMessageElement(messageData) {
     const timeSpan = document.createElement('span');
     timeSpan.className = 'message-time';
     timeSpan.textContent = messageData.time;
+    
+    // Add the read status checkmark for sent messages
     if (isMyMessage) {
         const statusSpan = document.createElement('span');
         statusSpan.className = 'status-read'; 
-        statusSpan.innerHTML = '✓✓';
+        statusSpan.innerHTML = '✓✓'; // Double checkmark
         timeSpan.appendChild(statusSpan);
     }
     li.appendChild(timeSpan);
@@ -109,11 +120,11 @@ function appendMessage(messageData) {
 
 // --- Socket.IO Receive Handlers ---
 
-// Handles initial state and updates button availability
+// Handles initial state and subsequent updates of user availability
 socket.on('available users', (inUseList) => {
     updateAvailableUsers(inUseList);
     
-    // If the client was waiting for a selection, re-enable the buttons if selection failed
+    // Re-enable buttons if a failed request was pending
     if (requestedUser) {
         selectUserIButton.disabled = inUseList.includes('i');
         selectUserXButton.disabled = inUseList.includes('x');
@@ -121,22 +132,21 @@ socket.on('available users', (inUseList) => {
 });
 
 
-// Handles the server's response to a user selection request
+// Handles the server's response to the user selection request
 socket.on('user selected', (success) => {
     if (requestedUser && success) {
-        // SUCCESS: Start the chat and clear the request state
+        // SUCCESS: Start the chat
         startChat(requestedUser.selectedUser, requestedUser.otherUser);
         requestedUser = null; 
     } else if (requestedUser && !success) {
-        // FAILURE: User was already taken. Re-enable the remaining button(s).
+        // FAILURE: User was already taken. Alert user.
         alert(`User ${requestedUser.selectedUser} is now taken! Please choose the other user.`);
-        
-        // This relies on the 'available users' event to update the final button state
         requestedUser = null; 
+        // 'available users' event handles the button state update
     }
 });
 
-// History and Chat Message handlers
+// Load historical messages from MongoDB
 socket.on('history', (history) => {
     messages.innerHTML = '';
     history.forEach(msg => {
@@ -144,6 +154,7 @@ socket.on('history', (history) => {
     });
 });
 
+// Receive a new message in real-time
 socket.on('chat message', (msg) => {
     appendMessage(msg);
 });
@@ -153,7 +164,8 @@ socket.on('chat message', (msg) => {
 
 form.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (input.value.trim()) {
+    // Only send if input is not empty and a user is selected
+    if (input.value.trim() && currentUser) { 
         const messageText = input.value.trim();
         const now = new Date();
         const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -174,6 +186,7 @@ form.addEventListener('submit', (e) => {
 // --- Textarea Auto-Resize ---
 
 function autoResizeInput() {
+    // Reset height to calculate scrollHeight correctly
     input.style.height = '44px'; 
     const scrollHeight = input.scrollHeight;
     
