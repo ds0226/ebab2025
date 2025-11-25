@@ -127,3 +127,19 @@ function startServerLogic() {
             
             if (disconnectedUser) {
                 activeUsers[disconnectedUser] = null; // Free up the user slot
+                console.log(`User ${disconnectedUser} slot freed.`);
+                
+                // Broadcast the updated list to ALL clients
+                const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
+                io.emit('available users', inUseList);
+            }
+        }); // Closing socket.on('disconnect')
+    }); // Closing io.on('connection')
+
+    server.listen(port, () => {
+        console.log(`Server listening on port ${port}`);
+    });
+} // Closing startServerLogic() function
+
+// Initiate the database connection and start the server logic
+connectDB();
