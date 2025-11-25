@@ -102,7 +102,7 @@ function startServerLogic() {
             // Broadcast the updated list to ALL clients so they can update buttons.
             const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
             io.emit('available users', inUseList);
-        });
+        }); // Closing socket.on('select user')
         
         // --- Chat Message Event ---
         socket.on('chat message', async (msg) => {
@@ -116,7 +116,7 @@ function startServerLogic() {
             
             // Broadcast the message to all connected clients
             io.emit('chat message', msg); 
-        });
+        }); // Closing socket.on('chat message')
 
         // --- Disconnect/Deselection Event ---
         socket.on('disconnect', () => {
