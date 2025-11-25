@@ -1,205 +1,103 @@
-// client.js - Handles client-side logic, including DOM manipulation and Socket.IO communication.
-
-// --- Global Variables and Socket Initialization ---
-const socket = io(); 
-
+const socket = io();
 let currentUser = null;
-let requestedUser = null; // Stores the user the client tried to select
+let selectedMessageId = null;
 
-// Element references (CRITICAL: Ensure these IDs match index.html exactly)
+// --- DOM Elements ---
 const messages = document.getElementById('messages');
 const form = document.getElementById('form');
 const input = document.getElementById('input');
-const chatContainer = document.getElementById('chat-container');
-const userSelectionScreen = document.getElementById('initial-user-selection');
-const myUserIdDisplay = document.getElementById('my-user-id-display');
-const otherUserStatus = document.getElementById('other-user-status');
-const headerBar = document.getElementById('header-bar');
-
-// Button references for user exclusivity feature
-const selectUserIButton = document.getElementById('select-user-i'); 
-const selectUserXButton = document.getElementById('select-user-x'); 
 const sendButton = document.getElementById('send-button');
-const photoButton = document.getElementById('photo-button');
+const headerBar = document.getElementById('header-bar');
+const currentUserDisplay = document.getElementById('my-user-id-display');
+const otherUserStatus = document.getElementById('other-user-status');
+const selectionScreen = document.getElementById('initial-user-selection');
+const chatContainer = document.getElementById('chat-container');
 
+// --- Utility Functions ---
 
-// --- User Interface & Setup Logic ---
-
-function setupUserSelection() {
-    // CRITICAL FIX: Only attach listeners if the buttons exist.
-    if (selectUserIButton && selectUserXButton) {
-        selectUserIButton.addEventListener('click', () => requestUserSelection('i', 'x'));
-        selectUserXButton.addEventListener('click', () => requestUserSelection('x', 'i'));
-    } else {
-        console.error("User selection buttons not found in HTML. Check index.html IDs.");
-    }
+function getCurrentTime() {
+    return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
-// Requests a user ID from the server
-function requestUserSelection(selectedUser, otherUser) {
-    requestedUser = { selectedUser, otherUser };
-    socket.emit('select user', selectedUser);
-    
-    // Disable buttons temporarily while waiting for server response
-    selectUserIButton.disabled = true;
-    selectUserXButton.disabled = true;
-}
-
-// Updates the UI based on which users are taken (broadcast from server)
-function updateAvailableUsers(inUseList) {
-    selectUserIButton.disabled = inUseList.includes('i');
-    selectUserXButton.disabled = inUseList.includes('x');
-    
-    // Provide visual feedback
-    selectUserIButton.textContent = inUseList.includes('i') ? 'User i (TAKEN)' : 'Chat as: i';
-    selectUserXButton.textContent = inUseList.includes('x') ? 'User x (TAKEN)' : 'Chat as: x';
-}
-
-
-// Starts chat and hides the selection screen
-function startChat(selectedUser, otherUser) {
-    currentUser = selectedUser;
-    
-    // Hide the selection screen and show the chat container
-    userSelectionScreen.style.display = 'none'; 
-    chatContainer.style.display = 'flex';       
-    headerBar.style.display = 'flex';
-    form.style.display = 'flex';
-    
-    myUserIdDisplay.textContent = currentUser;
-    
-    // Update the status of the other user
-    // Note: True "Online" status requires additional complex logic we haven't implemented, 
-    // so we set the status based on the selected user for visual continuity.
-    if (otherUser === 'i') {
-        otherUserStatus.textContent = 'Recently online';
-        otherUserStatus.className = 'status-offline'; 
-    } else {
-        otherUserStatus.textContent = 'Online';
-        otherUserStatus.className = 'status-online';
-    }
+// Scrolls the messages container to the bottom
+function scrollToBottom() {
+    messages.scrollTop = messages.scrollHeight;
 }
 
 // --- Message Rendering Logic ---
 
-// Handles multiline messages for display
-function formatMessageContent(rawMessage) {
-    const htmlContent = rawMessage.replace(/\n/g, '<br>'); 
-    return htmlContent;
-}
-
 function createMessageElement(messageData) {
-    const isMyMessage = messageData.senderID === currentUser; 
+    // FIX: Check for senderID (used by modern client) OR sender (used by some old history)
+    const senderKey = messageData.senderID || messageData.sender;
+    const isMyMessage = senderKey === currentUser;
+
     const li = document.createElement('li');
     li.className = `message-bubble ${isMyMessage ? 'my-message' : 'their-message'}`;
+    li.dataset.id = messageData._id;
+
+    // Message Text
     const textSpan = document.createElement('span');
     textSpan.className = 'message-text';
-    textSpan.innerHTML = formatMessageContent(messageData.text); 
-    li.appendChild(textSpan);
+    textSpan.textContent = messageData.message;
+
+    // Time and Status Container
     const timeSpan = document.createElement('span');
     timeSpan.className = 'message-time';
-    timeSpan.textContent = messageData.time;
-    
-    // Add the read status checkmark for sent messages
+    timeSpan.textContent = getCurrentTime(); // Use current time for newly rendered history
+
+    // Status Checkmarks (Only for 'my-message')
     if (isMyMessage) {
+        // Placeholder for single tick (Sent)
         const statusSpan = document.createElement('span');
-        statusSpan.className = 'status-read'; 
-        statusSpan.innerHTML = '✓✓'; // Double checkmark
+        statusSpan.classList.add('status-sent', 'status-read'); // Using 'status-read' class for final look
+        statusSpan.innerHTML = '✓✓'; // Double checkmark icon
         timeSpan.appendChild(statusSpan);
     }
+
+    li.appendChild(textSpan);
     li.appendChild(timeSpan);
+
+    // Add click handler for selection/deletion (Placeholder logic)
+    li.addEventListener('click', () => {
+        // ... (Deletion logic placeholder if implemented later) ...
+    });
+    
     return li;
 }
 
-function appendMessage(messageData) {
-    const messageElement = createMessageElement(messageData);
-    messages.appendChild(messageElement);
-    messages.scrollTop = messages.scrollHeight;
+// Renders a single message to the chat
+function renderMessage(messageData) {
+    messages.appendChild(createMessageElement(messageData));
+    scrollToBottom();
 }
 
+// --- Socket.IO Event Listeners ---
 
-// --- Socket.IO Receive Handlers ---
-
-// Handles initial state and subsequent updates of user availability
-socket.on('available users', (inUseList) => {
-    updateAvailableUsers(inUseList);
-    
-    // Re-enable buttons if a failed request was pending
-    if (requestedUser) {
-        selectUserIButton.disabled = inUseList.includes('i');
-        selectUserXButton.disabled = inUseList.includes('x');
-    }
-});
-
-
-// Handles the server's response to the user selection request
-socket.on('user selected', (success) => {
-    if (requestedUser && success) {
-        // SUCCESS: Start the chat
-        startChat(requestedUser.selectedUser, requestedUser.otherUser);
-        requestedUser = null; 
-    } else if (requestedUser && !success) {
-        // FAILURE: User was already taken. Alert user.
-        alert(`User ${requestedUser.selectedUser} is now taken! Please choose the other user.`);
-        requestedUser = null; 
-        // 'available users' event handles the button state update
-    }
-});
-
-// Load historical messages from MongoDB
-socket.on('history', (history) => {
-    messages.innerHTML = '';
-    history.forEach(msg => {
-        appendMessage(msg);
-    });
-});
-
-// Receive a new message in real-time
+// 1. Handle incoming chat messages (real-time and self-sent echoes)
 socket.on('chat message', (msg) => {
-    appendMessage(msg);
+    // Only render if the message is from the other user OR if it's the current user sending it
+    const senderKey = msg.senderID || msg.sender;
+    if (senderKey === currentUser || senderKey !== currentUser) {
+        renderMessage(msg);
+    }
 });
 
+// 2. Handle history load
+socket.on('history', (messagesHistory) => {
+    messagesHistory.forEach(renderMessage);
+});
 
-// --- Form Submission Logic (Sending Message) ---
+// 3. Handle availability updates from server
+socket.on('available users', (inUseList) => {
+    const iButton = document.querySelector('#initial-user-selection button[data-user="i"]');
+    const xButton = document.querySelector('#initial-user-selection button[data-user="x"]');
 
-form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    // Only send if input is not empty and a user is selected
-    if (input.value.trim() && currentUser) { 
-        const messageText = input.value.trim();
-        const now = new Date();
-        const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (iButton) iButton.disabled = inUseList.includes('i');
+    if (xButton) xButton.disabled = inUseList.includes('x');
 
-        const messageData = {
-            senderID: currentUser, 
-            text: messageText,
-            time: timeString
-        };
-
-        socket.emit('chat message', messageData); 
+    // Update the other user's status display if already logged in
+    if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        const isOtherUserOnline = inUseList.includes(otherUser);
         
-        input.value = ''; // Clear input field
-        autoResizeInput(); // Reset textarea height
-    }
-});
-
-// --- Textarea Auto-Resize ---
-
-function autoResizeInput() {
-    // Reset height to calculate scrollHeight correctly
-    input.style.height = '44px'; 
-    const scrollHeight = input.scrollHeight;
-    
-    if (scrollHeight > 120) {
-        input.style.height = '120px';
-    } else {
-        input.style.height = scrollHeight + 'px';
-    }
-}
-
-input.addEventListener('input', () => {
-    autoResizeInput();
-});
-
-// --- Initialize Application ---
-document.addEventListener('DOMContentLoaded', setupUserSelection);
+        otherUserStatus.textContent = isOtherUserOnline ? 'Online
