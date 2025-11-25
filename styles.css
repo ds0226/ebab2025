@@ -98,7 +98,7 @@ body {
 /* 5. Message Bubbles */
 .message-bubble {
     position: relative; 
-    /* FIX 1: Increased bottom padding to 18px to prevent time overlap */
+    /* Increased bottom padding to prevent time overlap */
     padding: 3px 12px 18px 12px; 
     border-radius: 8px; 
     /* Reduced margin between bubbles for a tighter list */
@@ -112,7 +112,7 @@ body {
     line-height: 1.2; 
 }
 
-/* FIX: Ensures the text content is a block, eliminates indentation, and provides TIGHT vertical packing */
+/* Ensures the text content is a block, eliminates indentation, and provides TIGHT vertical packing */
 .message-bubble .message-text {
     display: block;
     /* Absolute line height to match font size */
@@ -120,16 +120,6 @@ body {
     /* Extreme negative margin bottom to compress space */
     margin: 0 0 -4px 0; 
     padding: 0; 
-}
-
-/* New/Updated: Media styling inside a bubble */
-.message-bubble .chat-image,
-.message-bubble .chat-video { 
-    max-width: 100%; 
-    border-radius: 6px;
-    margin-top: 5px;
-    display: block;
-    max-height: 300px; /* Limits the display size of media */
 }
 
 /* My Messages (Sent) - Green Bubbles */
@@ -143,7 +133,6 @@ body {
 /* Their Messages (Received) - Gray Bubbles */
 .their-message {
     background-color: #1F2C34; 
-    /* FIX 2: Added align-self and margin-right to push the bubble to the left */
     align-self: flex-start; 
     margin-right: auto;
     border-bottom-left-radius: 0;
@@ -152,7 +141,7 @@ body {
 /* Time and Status Container */
 .message-time {
     position: absolute;
-    /* FIX 1: Adjusted bottom position to align with new 18px padding */
+    /* Adjusted bottom position to align with new 18px padding */
     bottom: 3px; 
     right: 7px;
     font-size: 0.7em;
@@ -181,7 +170,7 @@ body {
     color: #34B7F1; 
 }
 
-/* 6. Delete/Action Overlay */
+/* 6. Delete/Action Overlay (Placeholder Styles) */
 .message-bubble.selected {
     box-shadow: inset 0 0 0 2px #34B7F1; 
     background-color: rgba(52, 183, 241, 0.3) !important; 
@@ -206,26 +195,6 @@ body {
     transition: transform 0.3s ease-out;
 }
 
-#delete-action-bar.visible {
-    transform: translateY(0);
-}
-
-#delete-action-bar button {
-    background: transparent;
-    border: none;
-    color: #E0E0E0;
-    font-size: 16px;
-    cursor: pointer;
-    padding: 10px;
-    margin-left: 15px;
-}
-
-#delete-action-bar #selected-count {
-    margin-right: auto;
-    font-size: 1.1em;
-    font-weight: bold;
-}
-
 /* 7. Input Form Area */
 #form {
     background-color: #111B21; 
@@ -237,7 +206,7 @@ body {
     display: none; 
 }
 
-/* New: Photo button style */
+/* Photo button style */
 #photo-button {
     background: transparent;
     border: none;
@@ -249,34 +218,33 @@ body {
     justify-content: center;
     align-items: center;
     cursor: pointer;
-    margin-right: 4px; /* Space between photo and input field */
+    margin-right: 4px; 
 }
 
 #photo-button svg {
-    fill: #A0AEC0; /* Gray icon color */
+    fill: #A0AEC0; 
     width: 24px;
     height: 24px;
 }
 
-/* Textarea Input (UPDATED STYLES) */
+/* Textarea Input */
 #input {
     flex-grow: 1;
     background: #2C343F; 
     color: #FFFFFF;
     border: none; 
     padding: 10px 15px;
-    border-radius: 20px; /* Slightly smaller radius for multi-line box */
+    border-radius: 20px; 
     margin-right: 8px;
     font-size: 16px; 
     
-    /* NEW STYLES for textarea */
     resize: none; 
-    max-height: 120px; /* Max height before scroll bar appears */
+    max-height: 120px; 
     overflow-y: auto; 
     line-height: 1.4;
     box-sizing: border-box; 
     align-self: stretch; 
-    height: 44px; /* Set a minimum height matching the button */
+    height: 44px; 
     min-height: 44px;
 }
 
@@ -295,7 +263,6 @@ body {
     justify-content: center;
     align-items: center;
     cursor: pointer;
-    /* Aligns the button to the bottom of the form */
     align-self: flex-end; 
 }
 
@@ -314,9 +281,10 @@ body {
     right: 0;
     bottom: 0;
     display: flex; 
-    flex-direction: column;
+    /* CRITICAL FIX: Forces the buttons to stack vertically */
+    flex-direction: column; 
     justify-content: center;
-    align-items: center;
+    align-items: center; /* Centers items horizontally */
     text-align: center;
     padding: 20px;
     background-color: #0F161A; 
@@ -337,8 +305,11 @@ body {
     border-radius: 8px;
     font-size: 18px;
     cursor: pointer;
-    width: 200px;
+    /* Sets a consistent width for the stacked buttons */
+    width: 200px; 
     transition: background-color 0.2s;
+    /* Ensures the button respects the 200px width */
+    display: block; 
 }
 
 #initial-user-selection button:hover:not(:disabled) {
