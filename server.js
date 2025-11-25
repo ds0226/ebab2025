@@ -11,11 +11,11 @@ const server = http.createServer(app);
 const port = process.env.PORT || 3000;
 
 // IMPORTANT: Allow cross-origin access for deployment platforms like Render/Vercel
-// You MUST set the CORS origin to your frontend's deployed URL (e.g., https://ebab2025.onrender.com)
-// If running locally, you can use: { origin: "http://localhost:3000" } or { origin: "*" }
+// For deployment, set CORS origin to your frontend's deployed URL (e.g., https://ebab2025.onrender.com)
+// Using "*" is acceptable for testing but not recommended for production security.
 const io = new Server(server, {
     cors: {
-        origin: "*", // Replace with your actual frontend URL for production security
+        origin: "*", // Set to your frontend URL later: 'https://ebab2025.onrender.com'
         methods: ["GET", "POST"]
     }
 }); 
@@ -135,7 +135,7 @@ function startServerLogic() {
             
             if (disconnectedUser) {
                 activeUsers[disconnectedUser] = null; // Free up the user slot
-                console.log(`User ${disconnectedUser} slot freed.`);
+                console.log(`User ${disconnectedUser} slot freed.`); // CRITICAL LOG for debugging sticky sessions
                 
                 // Broadcast the updated list to ALL clients
                 const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
