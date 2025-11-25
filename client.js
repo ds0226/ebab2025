@@ -119,13 +119,19 @@ socket.on('user selected', (success) => {
         currentUserDisplay.textContent = currentUser;
         input.focus();
     } else {
-        // Failed login (user taken)
+        // Failed login (user taken or invalid ID sent)
+        
+        // This check prevents an infinite loop if the server sends back 'false' for an invalid ID
+        if (currentUser) {
+            alert('User is already selected by another client.');
+        } else {
+             // Optional: Alert for invalid ID, though the server usually handles this
+             console.error("Server rejected selection with an invalid user ID.");
+        }
+        
         currentUser = null;
-        alert('User is already selected by another client.');
-        // Re-enable the button that was just clicked
-        document.querySelectorAll('#initial-user-selection button').forEach(btn => {
-            if (btn.dataset.user === currentUser) btn.disabled = false;
-        });
+        // Re-enable all buttons
+        document.querySelectorAll('#initial-user-selection button').forEach(btn => btn.disabled = false);
     }
 });
 
@@ -147,10 +153,10 @@ form.addEventListener('submit', (e) => {
     }
 });
 
-// Handle the initial user selection
+// Handle the initial user selection (CRITICAL SECTION)
 document.querySelectorAll('#initial-user-selection button').forEach(button => {
     button.addEventListener('click', () => {
-        const userId = button.dataset.user;
+        const userId = button.dataset.user; // <-- Reads 'i' or 'x' from the button
         
         // 1. Optimistically set the current user
         currentUser = userId;
@@ -159,6 +165,7 @@ document.querySelectorAll('#initial-user-selection button').forEach(button => {
         document.querySelectorAll('#initial-user-selection button').forEach(btn => btn.disabled = true);
 
         // 3. Send selection request to server
+        // This is the critical line that sends the correct ID ('i' or 'x')
         socket.emit('select user', userId);
     });
 });
