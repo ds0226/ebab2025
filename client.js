@@ -1,4 +1,8 @@
-const socket = io();
+// client.js - Handles all client-side logic, including user selection and message rendering.
+
+// CRITICAL FIX: Use the full deployed URL for Socket.IO connection
+// Replace 'https://ebab2025.onrender.com' with your actual deployed URL if it changes.
+const socket = io('https://ebab2025.onrender.com'); 
 let currentUser = null;
 let selectedMessageId = null;
 
@@ -43,13 +47,12 @@ function createMessageElement(messageData) {
     // Time and Status Container
     const timeSpan = document.createElement('span');
     timeSpan.className = 'message-time';
-    timeSpan.textContent = getCurrentTime(); // Use current time for newly rendered history
+    timeSpan.textContent = getCurrentTime(); 
 
     // Status Checkmarks (Only for 'my-message')
     if (isMyMessage) {
-        // Placeholder for double tick (Sent/Read)
         const statusSpan = document.createElement('span');
-        statusSpan.classList.add('status-sent', 'status-read'); // Using 'status-read' class for final look
+        statusSpan.classList.add('status-sent', 'status-read'); 
         statusSpan.innerHTML = '✓✓'; // Double checkmark icon
         timeSpan.appendChild(statusSpan);
     }
@@ -103,9 +106,9 @@ socket.on('available users', (inUseList) => {
         otherUserStatus.textContent = isOtherUserOnline ? 'Online' : 'Recently online';
         otherUserStatus.className = isOtherUserOnline ? 'status-online' : 'status-offline';
     }
-}); // <-- MISSING CLOSING BRACKET WAS HERE
+}); 
 
-// 4. Handle server response after attempting to select a user (CRITICAL MISSING PART)
+// 4. Handle server response after attempting to select a user 
 socket.on('user selected', (success) => {
     if (success) {
         // Successful login: Hide selection, show chat UI
@@ -144,7 +147,7 @@ form.addEventListener('submit', (e) => {
     }
 });
 
-// Handle the initial user selection (CRITICAL MISSING PART)
+// Handle the initial user selection
 document.querySelectorAll('#initial-user-selection button').forEach(button => {
     button.addEventListener('click', () => {
         const userId = button.dataset.user;

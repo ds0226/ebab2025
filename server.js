@@ -10,10 +10,17 @@ const app = express();
 const server = http.createServer(app);
 const port = process.env.PORT || 3000;
 
-const io = new Server(server); 
+// IMPORTANT: Allow cross-origin access for deployment platforms like Render/Vercel
+// You MUST set the CORS origin to your frontend's deployed URL (e.g., https://ebab2025.onrender.com)
+// If running locally, you can use: { origin: "http://localhost:3000" } or { origin: "*" }
+const io = new Server(server, {
+    cors: {
+        origin: "*", // Replace with your actual frontend URL for production security
+        methods: ["GET", "POST"]
+    }
+}); 
 
 // --- MongoDB Configuration ---
-// The connection string MUST be set as the MONGO_URI environment variable (e.g., on Render).
 const uri = process.env.MONGO_URI; 
 
 if (!uri) {
@@ -27,7 +34,6 @@ const collectionName = "messages";
 let messagesCollection; 
 
 // --- Global Chat State for User Exclusivity (CRITICAL) ---
-// Tracks which user IDs ('i' or 'x') are currently taken, mapped to the socket ID.
 const activeUsers = {
     'i': null, // Holds socket.id if user 'i' is active, null otherwise
     'x': null  // Holds socket.id if user 'x' is active, null otherwise
@@ -85,6 +91,7 @@ function startServerLogic() {
 
         // --- User Selection Event ---
         socket.on('select user', (userId) => {
+            console.log(`Received selection attempt for user: ${userId} from socket: ${socket.id}`); 
             
             if (activeUsers[userId] === null) {
                 // SUCCESS: User ID is available
@@ -97,12 +104,13 @@ function startServerLogic() {
             } else {
                 // FAILURE: User ID is already taken
                 socket.emit('user selected', false);
+                console.log(`Selection failed: ${userId} is already taken.`);
             }
             
             // Broadcast the updated list to ALL clients so they can update buttons.
             const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
             io.emit('available users', inUseList);
-        }); // Closing socket.on('select user')
+        });
         
         // --- Chat Message Event ---
         socket.on('chat message', async (msg) => {
@@ -116,7 +124,7 @@ function startServerLogic() {
             
             // Broadcast the message to all connected clients
             io.emit('chat message', msg); 
-        }); // Closing socket.on('chat message')
+        });
 
         // --- Disconnect/Deselection Event ---
         socket.on('disconnect', () => {
@@ -133,13 +141,13 @@ function startServerLogic() {
                 const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
                 io.emit('available users', inUseList);
             }
-        }); // Closing socket.on('disconnect')
-    }); // Closing io.on('connection')
+        }); 
+    }); 
 
     server.listen(port, () => {
         console.log(`Server listening on port ${port}`);
     });
-} // Closing startServerLogic() function
+} 
 
 // Initiate the database connection and start the server logic
 connectDB();
