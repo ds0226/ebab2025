@@ -145,8 +145,8 @@ body {
 }
 
 .message-text, .message-content a {
-    font-size: 0.95em;
-    padding-right: 35px; /* Space for time/status */
+    font-size: 0.75em;
+    padding-right: 25px; /* Space for time/status */
 }
 
 /* Styles for embedded media */
@@ -160,7 +160,7 @@ body {
 
 .message-content a {
     /* Style for document link */
-    font-weight: bold;
+    font-weight: normal;
     white-space: nowrap;
 }
 
@@ -178,7 +178,7 @@ body {
 
 .status-sent, .status-read {
     color: #53bdeb; /* Blue checkmarks */
-    font-weight: bold;
+    font-weight: normal;
 }
 
 /* --- Input Form (Bottom) --- */
