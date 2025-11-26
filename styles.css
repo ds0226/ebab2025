@@ -233,3 +233,202 @@ body {
     height: 24px;
     vertical-align: middle;
 }
+/* --- Message Actions Enhancement --- */
+.message-bubble {
+    transition: background-color 0.2s ease;
+}
+
+.message-bubble:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* --- Message Actions Container --- */
+.message-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 5;
+}
+
+.message-bubble:hover .message-actions {
+    opacity: 1;
+}
+
+.message-actions-btn {
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    border-radius: 12px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #e9edef;
+    font-size: 12px;
+    transition: background-color 0.2s ease;
+}
+
+.message-actions-btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+/* --- Message Actions Dropdown Menu --- */
+.message-actions-menu {
+    position: absolute;
+    top: 30px;
+    right: 0;
+    background: #2a3942;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    min-width: 180px;
+    z-index: 100;
+    display: none;
+    overflow: hidden;
+}
+
+.message-actions-menu.show {
+    display: block;
+}
+
+.message-action-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #e9edef;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+}
+
+.message-action-item:hover {
+    background: #384e5a;
+}
+
+.message-action-item.danger {
+    color: #ff6b6b;
+}
+
+.message-action-item.danger:hover {
+    background: #4a2c2c;
+}
+
+/* --- Emoji Reactions --- */
+.message-reactions {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
+
+.reaction {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: background-color 0.2s ease;
+    color: #e9edef;
+}
+
+.reaction:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.reaction-count {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* --- Reply Message --- */
+.reply-container {
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid #00a884;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border-radius: 0 8px 8px 0;
+    font-size: 0.9em;
+}
+
+.reply-text {
+    color: #8696a0;
+    margin-bottom: 4px;
+    font-size: 0.8em;
+}
+
+.reply-message {
+    color: #e9edef;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Edit Mode --- */
+.message-edit-mode {
+    background: rgba(0, 168, 132, 0.1);
+    border: 1px solid #00a884;
+    border-radius: 8px;
+    padding: 4px 8px;
+}
+
+.message-edit-input {
+    background: transparent;
+    border: none;
+    color: #e9edef;
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+    width: 100%;
+    resize: none;
+    min-height: 20px;
+}
+
+.edit-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    justify-content: flex-end;
+}
+
+.edit-btn {
+    background: #00a884;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 12px;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.edit-btn.cancel {
+    background: #8696a0;
+}
+
+.edit-btn:hover {
+    opacity: 0.8;
+}
+
+/* --- Forward Indicator --- */
+.forward-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #8696a0;
+    font-size: 0.8em;
+    margin-bottom: 4px;
+}
+
+.forward-icon {
+    font-size: 12px;
+}

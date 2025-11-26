@@ -79,7 +79,7 @@ async function uploadFile(file) {
 }
 
 
-// --- Message Rendering Logic (UPDATED FOR STATUS) ---
+// --- Enhanced Message Rendering Logic with Actions ---
 
 function createMessageElement(messageData) {
     const senderKey = messageData.senderID || messageData.sender;
@@ -92,6 +92,48 @@ function createMessageElement(messageData) {
     if(messageData._id) {
         li.dataset.id = messageData._id; 
     }
+    li.dataset.messageId = messageData._id || 'temp-' + Date.now();
+
+    // --- Message Actions Container ---
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'message-actions';
+    
+    const actionsBtn = document.createElement('button');
+    actionsBtn.className = 'message-actions-btn';
+    actionsBtn.innerHTML = '⋮';
+    actionsBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleMessageActions(messageData._id || li.dataset.messageId);
+    };
+    
+    actionsContainer.appendChild(actionsBtn);
+    li.appendChild(actionsContainer);
+
+    // --- Reply Container (if this is a reply) ---
+    if (messageData.replyTo) {
+        const replyContainer = document.createElement('div');
+        replyContainer.className = 'reply-container';
+        
+        const replyText = document.createElement('div');
+        replyText.className = 'reply-text';
+        replyText.textContent = `Replying to ${messageData.replyTo.senderID}`;
+        
+        const replyMessage = document.createElement('div');
+        replyMessage.className = 'reply-message';
+        replyMessage.textContent = messageData.replyTo.message;
+        
+        replyContainer.appendChild(replyText);
+        replyContainer.appendChild(replyMessage);
+        li.appendChild(replyContainer);
+    }
+
+    // --- Forward Indicator (if this is a forwarded message) ---
+    if (messageData.forwarded) {
+        const forwardIndicator = document.createElement('div');
+        forwardIndicator.className = 'forward-indicator';
+        forwardIndicator.innerHTML = `<span class="forward-icon">⤴</span> Forwarded message`;
+        li.appendChild(forwardIndicator);
+    }
 
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
@@ -100,22 +142,17 @@ function createMessageElement(messageData) {
     if (messageData.type === 'image') {
         const img = document.createElement('img');
         img.src = messageData.message; 
-        // ... (styles)
         contentDiv.appendChild(img);
-    } 
-    // ... (logic for video and document remains the same)
-    else if (messageData.type === 'video') {
+    } else if (messageData.type === 'video') {
         const video = document.createElement('video');
         video.src = messageData.message;
         video.controls = true;
-        // ... (styles)
         contentDiv.appendChild(video);
     } else if (messageData.type === 'document') {
         const docLink = document.createElement('a');
         docLink.href = messageData.message;
         docLink.target = '_blank';
         docLink.textContent = `\ud83d\udcc4 Download File (${messageData.message.split('/').pop()})`; 
-        // ... (styles)
         contentDiv.appendChild(docLink);
     } else {
         const textSpan = document.createElement('span');
@@ -126,12 +163,33 @@ function createMessageElement(messageData) {
 
     li.appendChild(contentDiv); 
 
+    // --- Reactions Container ---
+    if (messageData.reactions && Object.keys(messageData.reactions).length > 0) {
+        const reactionsContainer = document.createElement('div');
+        reactionsContainer.className = 'message-reactions';
+        
+        for (const [emoji, users] of Object.entries(messageData.reactions)) {
+            const reactionBtn = document.createElement('button');
+            reactionBtn.className = 'reaction';
+            reactionBtn.innerHTML = `${emoji}<span class="reaction-count">${users.length}</span>`;
+            reactionBtn.onclick = () => toggleReaction(messageData._id, emoji);
+            reactionsContainer.appendChild(reactionBtn);
+        }
+        
+        li.appendChild(reactionsContainer);
+    }
+
     // Time and Status Container
     const timeSpan = document.createElement('span');
     timeSpan.className = 'message-time';
-    timeSpan.textContent = getCurrentTime(); 
+    
+    if (messageData.edited) {
+        timeSpan.textContent = `edited ${getCurrentTime()}`;
+    } else {
+        timeSpan.textContent = getCurrentTime(); 
+    }
 
-    // --- Status Checkmarks (NEW LOGIC) ---
+    // --- Status Checkmarks ---
     if (isMyMessage) {
         const statusSpan = document.createElement('span');
         statusSpan.classList.add(`status-${status}`); 
@@ -188,6 +246,104 @@ socket.on('message status update', (data) => {
         }
     }
 });
+
+// --- Message Actions Event Listeners ---
+socket.on('message edited', (data) => {
+    console.log('Message edited:', data);
+    const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+    if (messageElement) {
+        const textSpan = messageElement.querySelector('.message-text');
+        if (textSpan) {
+            textSpan.textContent = data.newMessage;
+        }
+        
+        // Update time to show edited
+        const timeSpan = messageElement.querySelector('.message-time');
+        if (timeSpan) {
+            const timeText = timeSpan.childNodes[0];
+            timeText.textContent = `edited ${getCurrentTime()}`;
+        }
+    }
+});
+
+socket.on('message deleted', (data) => {
+    console.log('Message deleted:', data);
+    const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+    if (messageElement) {
+        messageElement.style.opacity = '0.5';
+        messageElement.style.pointerEvents = 'none';
+        
+        const contentDiv = messageElement.querySelector('.message-content');
+        if (contentDiv) {
+            contentDiv.innerHTML = '<span style="color: #8696a0; font-style: italic;">This message was deleted</span>';
+        }
+        
+        // Remove actions menu
+        const actionsContainer = messageElement.querySelector('.message-actions');
+        if (actionsContainer) {
+            actionsContainer.remove();
+        }
+    }
+});
+
+socket.on('reaction added', (data) => {
+    console.log('Reaction added:', data);
+    updateMessageReactions(data.messageId, data.emoji, data.userId, 'add');
+});
+
+socket.on('reaction toggled', (data) => {
+    console.log('Reaction toggled:', data);
+    updateMessageReactions(data.messageId, data.emoji, data.userId, 'toggle');
+});
+
+function updateMessageReactions(messageId, emoji, userId, action) {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (!messageElement) return;
+    
+    let reactionsContainer = messageElement.querySelector('.message-reactions');
+    
+    // Create reactions container if it doesn't exist
+    if (!reactionsContainer) {
+        reactionsContainer = document.createElement('div');
+        reactionsContainer.className = 'message-reactions';
+        
+        // Insert before time span
+        const timeSpan = messageElement.querySelector('.message-time');
+        messageElement.insertBefore(reactionsContainer, timeSpan);
+    }
+    
+    // Find existing reaction or create new one
+    let existingReaction = Array.from(reactionsContainer.children).find(
+        reaction => reaction.textContent.includes(emoji)
+    );
+    
+    if (action === 'add') {
+        if (!existingReaction) {
+            const reactionBtn = document.createElement('button');
+            reactionBtn.className = 'reaction';
+            reactionBtn.innerHTML = `${emoji}<span class="reaction-count">1</span>`;
+            reactionBtn.onclick = () => toggleReaction(messageId, emoji);
+            reactionsContainer.appendChild(reactionBtn);
+        } else {
+            const countSpan = existingReaction.querySelector('.reaction-count');
+            countSpan.textContent = parseInt(countSpan.textContent) + 1;
+        }
+    } else if (action === 'toggle') {
+        if (existingReaction) {
+            const countSpan = existingReaction.querySelector('.reaction-count');
+            const currentCount = parseInt(countSpan.textContent);
+            
+            if (currentCount <= 1) {
+                existingReaction.remove();
+                if (reactionsContainer.children.length === 0) {
+                    reactionsContainer.remove();
+                }
+            } else {
+                countSpan.textContent = currentCount - 1;
+            }
+        }
+    }
+}
 
 
    
@@ -312,6 +468,340 @@ socket.on('presence update', (presenceData) => {
             }
         }
     });
+});
+
+// --- Message Actions Functionality ---
+
+let activeMessageActions = null;
+let replyToMessage = null;
+
+function toggleMessageActions(messageId) {
+    // Close any existing menu
+    closeMessageActions();
+    
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (!messageElement) return;
+    
+    // Create actions menu
+    const menu = document.createElement('div');
+    menu.className = 'message-actions-menu show';
+    menu.id = 'message-actions-menu';
+    
+    const messageData = getMessageData(messageId);
+    const isMyMessage = messageData.senderID === currentUser;
+    
+    // Reply
+    const replyItem = createActionItem('↩️ Reply', () => {
+        startReply(messageData);
+        closeMessageActions();
+    });
+    menu.appendChild(replyItem);
+    
+    // Copy
+    const copyItem = createActionItem('📋 Copy', () => {
+        copyMessage(messageData);
+        closeMessageActions();
+    });
+    menu.appendChild(copyItem);
+    
+    if (isMyMessage) {
+        // Edit (only for own messages)
+        if (messageData.type === 'text') {
+            const editItem = createActionItem('✏️ Edit', () => {
+                editMessage(messageData);
+                closeMessageActions();
+            });
+            menu.appendChild(editItem);
+        }
+        
+        // Delete (only for own messages)
+        const deleteItem = createActionItem('🗑️ Delete', () => {
+            deleteMessage(messageData);
+            closeMessageActions();
+        }, 'danger');
+        menu.appendChild(deleteItem);
+    }
+    
+    // Forward
+    const forwardItem = createActionItem('⤴️ Forward', () => {
+        forwardMessage(messageData);
+        closeMessageActions();
+    });
+    menu.appendChild(forwardItem);
+    
+    // Download (for media files)
+    if (messageData.type === 'image' || messageData.type === 'video' || messageData.type === 'document') {
+        const downloadItem = createActionItem('💾 Download', () => {
+            downloadFile(messageData);
+            closeMessageActions();
+        });
+        menu.appendChild(downloadItem);
+    }
+    
+    // Add reactions section
+    const reactionsDivider = document.createElement('div');
+    reactionsDivider.style.cssText = 'height: 1px; background: #384e5a; margin: 4px 0;';
+    menu.appendChild(reactionsDivider);
+    
+    const reactionsLabel = document.createElement('div');
+    reactionsLabel.style.cssText = 'padding: 5px 16px; color: #8696a0; font-size: 12px;';
+    reactionsLabel.textContent = 'React';
+    menu.appendChild(reactionsLabel);
+    
+    // Emoji reactions
+    const emojis = ['❤️', '👍', '😂', '😮', '😢', '👎'];
+    const reactionsContainer = document.createElement('div');
+    reactionsContainer.style.cssText = 'display: flex; gap: 4px; padding: 8px 16px;';
+    
+    emojis.forEach(emoji => {
+        const reactionBtn = document.createElement('button');
+        reactionBtn.style.cssText = 'background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px; border-radius: 4px;';
+        reactionBtn.textContent = emoji;
+        reactionBtn.onclick = () => {
+            addReaction(messageData, emoji);
+            closeMessageActions();
+        };
+        reactionsContainer.appendChild(reactionBtn);
+    });
+    
+    menu.appendChild(reactionsContainer);
+    
+    // Position the menu
+    const actionsBtn = messageElement.querySelector('.message-actions-btn');
+    const rect = actionsBtn.getBoundingClientRect();
+    menu.style.top = `${rect.bottom + 5}px`;
+    menu.style.right = '0';
+    
+    messageElement.appendChild(menu);
+    activeMessageActions = menu;
+    
+    // Close menu when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', closeMessageActions);
+    }, 100);
+}
+
+function closeMessageActions() {
+    if (activeMessageActions) {
+        activeMessageActions.remove();
+        activeMessageActions = null;
+        document.removeEventListener('click', closeMessageActions);
+    }
+}
+
+function createActionItem(text, onClick, className = '') {
+    const item = document.createElement('button');
+    item.className = `message-action-item ${className}`;
+    item.textContent = text;
+    item.onclick = onClick;
+    return item;
+}
+
+function getMessageData(messageId) {
+    // This would normally fetch from your stored messages
+    // For now, we'll create a mock object based on DOM inspection
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (!messageElement) return null;
+    
+    return {
+        _id: messageId,
+        senderID: messageElement.classList.contains('my-message') ? currentUser : (currentUser === 'i' ? 'x' : 'i'),
+        message: messageElement.querySelector('.message-text')?.textContent || messageElement.querySelector('img')?.src || '',
+        type: messageElement.querySelector('.message-text') ? 'text' : 'image',
+        reactions: {}
+    };
+}
+
+function startReply(messageData) {
+    replyToMessage = messageData;
+    
+    // Show reply preview in input area
+    const input = document.getElementById('input');
+    const replyPreview = document.createElement('div');
+    replyPreview.id = 'reply-preview';
+    replyPreview.className = 'reply-container';
+    replyPreview.style.cssText = 'position: absolute; bottom: 70px; left: 20px; right: 80px; z-index: 10;';
+    replyPreview.innerHTML = `
+        <div class="reply-text">Replying to ${messageData.senderID}</div>
+        <div class="reply-message">${messageData.message}</div>
+        <button onclick="cancelReply()" style="background: none; border: none; color: #8696a0; cursor: pointer; position: absolute; top: 8px; right: 8px;">✕</button>
+    `;
+    
+    document.body.appendChild(replyPreview);
+    input.focus();
+}
+
+function cancelReply() {
+    replyToMessage = null;
+    const replyPreview = document.getElementById('reply-preview');
+    if (replyPreview) {
+        replyPreview.remove();
+    }
+}
+
+function copyMessage(messageData) {
+    if (messageData.type === 'text') {
+        navigator.clipboard.writeText(messageData.message).then(() => {
+            showNotification('Message copied to clipboard');
+        });
+    }
+}
+
+function editMessage(messageData) {
+    const messageElement = document.querySelector(`[data-message-id="${messageData._id}"]`);
+    const contentDiv = messageElement.querySelector('.message-content');
+    
+    const editContainer = document.createElement('div');
+    editContainer.className = 'message-edit-mode';
+    
+    const editInput = document.createElement('textarea');
+    editInput.className = 'message-edit-input';
+    editInput.value = messageData.message;
+    editInput.rows = 2;
+    
+    const editActions = document.createElement('div');
+    editActions.className = 'edit-actions';
+    editActions.innerHTML = `
+        <button class="edit-btn cancel" onclick="cancelEdit('${messageData._id}')">Cancel</button>
+        <button class="edit-btn" onclick="saveEdit('${messageData._id}')">Save</button>
+    `;
+    
+    editContainer.appendChild(editInput);
+    editContainer.appendChild(editActions);
+    
+    contentDiv.style.display = 'none';
+    contentDiv.parentNode.insertBefore(editContainer, contentDiv.nextSibling);
+    
+    editInput.focus();
+    editInput.setSelectionRange(editInput.value.length, editInput.value.length);
+}
+
+function cancelEdit(messageId) {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    const editContainer = messageElement.querySelector('.message-edit-mode');
+    const contentDiv = messageElement.querySelector('.message-content');
+    
+    if (editContainer) {
+        editContainer.remove();
+    }
+    contentDiv.style.display = 'block';
+}
+
+function saveEdit(messageId) {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    const editInput = messageElement.querySelector('.message-edit-input');
+    const newText = editInput.value.trim();
+    
+    if (newText) {
+        // Send edit to server
+        socket.emit('edit message', {
+            messageId: messageId,
+            newMessage: newText,
+            senderID: currentUser
+        });
+        
+        cancelEdit(messageId);
+    }
+}
+
+function deleteMessage(messageData) {
+    if (confirm('Are you sure you want to delete this message?')) {
+        socket.emit('delete message', {
+            messageId: messageData._id,
+            senderID: currentUser
+        });
+    }
+}
+
+function forwardMessage(messageData) {
+    const otherUser = currentUser === 'i' ? 'x' : 'i';
+    
+    const forwardData = {
+        originalSender: messageData.senderID,
+        message: messageData.message,
+        type: messageData.type,
+        forwarded: true,
+        timestamp: new Date().toISOString()
+    };
+    
+    socket.emit('forward message', forwardData);
+    showNotification('Message forwarded');
+}
+
+function downloadFile(messageData) {
+    if (messageData.type === 'image' || messageData.type === 'video' || messageData.type === 'document') {
+        const link = document.createElement('a');
+        link.href = messageData.message;
+        link.download = messageData.message.split('/').pop() || 'download';
+        link.target = '_blank';
+        link.click();
+    }
+}
+
+function addReaction(messageData, emoji) {
+    socket.emit('add reaction', {
+        messageId: messageData._id,
+        emoji: emoji,
+        userId: currentUser
+    });
+}
+
+function toggleReaction(messageId, emoji) {
+    socket.emit('toggle reaction', {
+        messageId: messageId,
+        emoji: emoji,
+        userId: currentUser
+    });
+}
+
+function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2a3942;
+        color: #e9edef;
+        padding: 12px 20px;
+        border-radius: 8px;
+        z-index: 1000;
+        animation: slideDown 0.3s ease;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+// --- Enhanced Form Submission ---
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value && currentUser) {
+        const messageData = {
+            senderID: currentUser, 
+            message: input.value,
+            type: 'text',
+            status: 'sent',
+            timestamp: new Date().toISOString()
+        };
+        
+        // Add reply info if replying
+        if (replyToMessage) {
+            messageData.replyTo = {
+                messageId: replyToMessage._id,
+                senderID: replyToMessage.senderID,
+                message: replyToMessage.message
+            };
+        }
+        
+        socket.emit('chat message', messageData);
+        input.value = '';
+        cancelReply(); // Clear reply state
+    }
 });
 
 // Photo button click handler
