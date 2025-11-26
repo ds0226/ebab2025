@@ -220,4 +220,69 @@ form.addEventListener('submit', (e) => {
     }
 });
 
-// ... (Initial user selection and photoButton click handlers remain the same)
+// --- User Selection Functionality ---
+function setupUserSelection() {
+    const userButtons = document.querySelectorAll('.user-buttons button');
+    
+    userButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const selectedUser = button.getAttribute('data-user');
+            selectUser(selectedUser);
+        });
+    });
+}
+
+function selectUser(userId) {
+    currentUser = userId;
+    
+    // Tell the server which user we are
+    socket.emit('select user', userId);
+}
+
+socket.on('user selected', (success) => {
+    if (success) {
+        selectionScreen.style.display = 'none';
+        chatContainer.style.display = 'flex';
+        currentUserDisplay.textContent = currentUser;
+        input.focus();
+        
+        // Update other user status display
+        updateOtherUserStatus();
+    } else {
+        alert('This user is already taken. Please select the other user.');
+    }
+});
+
+function updateOtherUserStatus() {
+    // Logic to update the other user's status display
+    socket.emit('get available users');
+}
+
+socket.on('available users', (inUseList) => {
+    // Update the other user status based on who's available
+    const otherUser = currentUser === 'i' ? 'x' : 'i';
+    const otherUserStatus = document.getElementById('other-user-status');
+    
+    if (inUseList.includes(otherUser)) {
+        otherUserStatus.textContent = 'Online';
+        otherUserStatus.className = 'status-online';
+    } else {
+        otherUserStatus.textContent = 'Offline';
+        otherUserStatus.className = 'status-offline';
+    }
+    
+    // Enable/disable buttons based on availability
+    const userButtons = document.querySelectorAll('.user-buttons button');
+    userButtons.forEach(button => {
+        const userId = button.getAttribute('data-user');
+        button.disabled = inUseList.includes(userId) && userId !== currentUser;
+    });
+});
+
+// Photo button click handler
+photoButton.addEventListener('click', () => {
+    photoInput.click();
+});
+
+// Initialize user selection when DOM is ready
+document.addEventListener('DOMContentLoaded', setupUserSelection);
