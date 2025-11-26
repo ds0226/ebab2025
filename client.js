@@ -2,6 +2,7 @@
 
 const socket = io('https://ebab2025.onrender.com'); // CRITICAL: Use your deployed URL
 let currentUser = null;
+let pendingHistory = null;
 
 // --- DOM Elements ---
 const messages = document.getElementById('messages');
@@ -165,7 +166,9 @@ socket.on('chat message', (msg) => {
 });
 
 socket.on('history', (messagesHistory) => {
-    messagesHistory.forEach(renderMessage);
+    // Store history but don't render until user is selected
+    pendingHistory = messagesHistory;
+    console.log('History received but pending user selection:', messagesHistory.length, 'messages');
 });
 
 // --- Real-time Status Update Listener (NEW) ---
@@ -190,16 +193,7 @@ socket.on('available users', (inUseList) => {
     // ... (User status update logic remains the same)
 }); 
 
-socket.on('user selected', (success) => {
-    if (success) {
-        selectionScreen.style.display = 'none';
-        chatContainer.style.display = 'flex'; 
-        currentUserDisplay.textContent = currentUser;
-        input.focus();
-    } else {
-        // ... (Failure logic remains the same)
-    }
-});
+
 
 
 // --- Event Handlers ---
@@ -245,6 +239,13 @@ socket.on('user selected', (success) => {
         chatContainer.style.display = 'flex';
         currentUserDisplay.textContent = currentUser;
         input.focus();
+        
+        // Render pending history now that we know who the current user is
+        if (pendingHistory && pendingHistory.length > 0) {
+            console.log('Rendering pending history for user:', currentUser);
+            pendingHistory.forEach(renderMessage);
+            pendingHistory = null; // Clear pending history
+        }
         
         // Update other user status display
         updateOtherUserStatus();
