@@ -57,7 +57,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px;
+    padding: 15px 20px;
     background-color: #202c33;
     color: #e9edef;
     position: fixed;
@@ -67,18 +67,40 @@ body {
     z-index: 10;
 }
 
+#user-info-left {
+    display: flex;
+    align-items: center;
+}
+
+#user-info-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
 .user-id {
     font-weight: bold;
     color: #00a884;
+    font-size: 1.1em;
+}
+
+.other-user-label {
+    font-weight: 600;
+    color: #e9edef;
+    font-size: 1.0em;
 }
 
 .status-online {
     color: #00a884;
-    font-weight: bold;
+    font-weight: normal;
+    font-size: 0.9em;
 }
 
 .status-offline, .status-recently-online {
     color: #8696a0;
+    font-weight: normal;
+    font-size: 0.9em;
 }
 
 /* --- Messages Container --- */
