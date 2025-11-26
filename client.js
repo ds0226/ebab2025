@@ -1,6 +1,6 @@
 // client.js - Handles all client-side logic, including file upload and real-time read receipts.
 
-const socket = io('http://localhost:3000'); // Using local test server
+const socket = io(); // Auto-connect to current host
 let currentUser = null;
 let pendingHistory = null;
 
