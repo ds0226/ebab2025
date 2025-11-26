@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fixed Message Alignment Test</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        #test-output {
+            background: #202c33;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        #test-controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #202c33;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+    </style>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+    <div id="test-controls">
+        <button onclick="simulateHistory()">Simulate History</button>
+        <button onclick="simulateUserSelect()">Select User 'i'</button>
+        <button onclick="clearMessages()">Clear</button>
+    </div>
+
+    <div id="initial-user-selection" style="display: flex;">
+        <h1>Who are you chatting as?</h1>
+        <div class="user-buttons">
+            <button data-user="i">Chat as: i</button>
+            <button data-user="x">Chat as: x</button>
+        </div>
+        <p>(Select a user to begin chat simulation)</p>
+        <div id="test-output"></div>
+    </div>
+
+    <div id="chat-container" style="display: none;">
+        <div id="header-bar">
+            <span id="my-user-id-display" class="user-id"></span>
+            <span id="other-user-status" class="status-offline"></span>
+        </div>
+        <ul id="messages"></ul>
+        <form id="form" action="">
+            <input type="file" id="photo-input" accept="image/*,video/*,application/pdf" style="display: none;">
+            <button id="photo-button" type="button" aria-label="Upload photo or file">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zM20 5h-3.17L15 3H9L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H4V7h4.05l1.84-2h4.24l1.84 2H20v12z"/></svg>
+            </button>
+            <textarea id="input" autocomplete="off" placeholder="Type a message..." rows="1"></textarea>
+            <button id="send-button" type="submit" aria-label="Send message">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // Mock socket.io for testing
+        const mockSocket = {
+            listeners: {},
+            on: function(event, callback) {
+                this.listeners[event] = callback;
+            },
+            emit: function(event, data) {
+                logTest(`Socket emit: ${event}`, data);
+            }
+        };
+
+        let currentUser = null;
+        let pendingHistory = null;
+
+        function logTest(message, data) {
+            const output = document.getElementById('test-output');
+            output.innerHTML += `<div>${message}: ${JSON.stringify(data)}</div>`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // Simulate the fixed client.js logic
+        function createMessageElement(messageData) {
+            const senderKey = messageData.senderID || messageData.sender;
+            const isMyMessage = senderKey === currentUser;
+            const status = messageData.status || 'sent';
+
+            const li = document.createElement('li');
+            li.className = `message-bubble ${isMyMessage ? 'my-message' : 'their-message'}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
+            const textSpan = document.createElement('span');
+            textSpan.className = 'message-text';
+            textSpan.textContent = messageData.message;
+            contentDiv.appendChild(textSpan);
+            
+            li.appendChild(contentDiv);
+
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'message-time';
+            timeSpan.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            if (isMyMessage) {
+                const statusSpan = document.createElement('span');
+                statusSpan.classList.add(`status-${status}`);
+                statusSpan.innerHTML = status === 'read' ? '✓✓' : '✓';
+                timeSpan.appendChild(statusSpan);
+            }
+
+            li.appendChild(timeSpan);
+            return li;
+        }
+
+        function renderMessage(messageData) {
+            const messages = document.getElementById('messages');
+            const messageElement = createMessageElement(messageData);
+            messages.appendChild(messageElement);
+            messages.scrollTop = messages.scrollHeight;
+            
+            logTest('Message rendered', {
+                sender: messageData.senderID,
+                isMyMessage: messageData.senderID === currentUser,
+                className: messageElement.className
+            });
+        }
+
+        function setupUserSelection() {
+            const userButtons = document.querySelectorAll('.user-buttons button');
+            
+            userButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const selectedUser = button.getAttribute('data-user');
+                    selectUser(selectedUser);
+                });
+            });
+        }
+
+        function selectUser(userId) {
+            currentUser = userId;
+            logTest('User selected', userId);
+            
+            // Simulate successful selection
+            const selectionScreen = document.getElementById('initial-user-selection');
+            const chatContainer = document.getElementById('chat-container');
+            const currentUserDisplay = document.getElementById('my-user-id-display');
+            
+            selectionScreen.style.display = 'none';
+            chatContainer.style.display = 'flex';
+            currentUserDisplay.textContent = currentUser;
+            
+            // Render pending history now that we know who the current user is
+            if (pendingHistory && pendingHistory.length > 0) {
+                logTest('Rendering pending history for user', currentUser);
+                pendingHistory.forEach(renderMessage);
+                pendingHistory = null; // Clear pending history
+            }
+        }
+
+        // Test functions
+        function simulateHistory() {
+            pendingHistory = [
+                { senderID: 'i', message: 'Hello from i', type: 'text', timestamp: new Date().toISOString() },
+                { senderID: 'x', message: 'Hello from x', type: 'text', timestamp: new Date().toISOString() },
+                { senderID: 'i', message: 'How are you?', type: 'text', timestamp: new Date().toISOString() },
+                { senderID: 'x', message: 'I am good!', type: 'text', timestamp: new Date().toISOString() }
+            ];
+            logTest('History simulated (pending)', `${pendingHistory.length} messages`);
+        }
+
+        function simulateUserSelect() {
+            selectUser('i');
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+            document.getElementById('test-output').innerHTML = '';
+            currentUser = null;
+            pendingHistory = null;
+            document.getElementById('initial-user-selection').style.display = 'flex';
+            document.getElementById('chat-container').style.display = 'none';
+            logTest('Test cleared', '');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', setupUserSelection);
+        logTest('Test initialized', 'Ready to simulate');
+    </script>
+</body>
+</html>

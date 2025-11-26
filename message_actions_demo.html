@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Actions Demo - Complete Chat System</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #0b141a;
+            color: #e9edef;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* --- Selection Screen --- */
+        #initial-user-selection {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            height: 100%;
+            width: 100%;
+        }
+
+        .user-buttons button {
+            margin: 10px;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            background-color: #2a3942;
+            color: #e9edef;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .user-buttons button:hover {
+            background-color: #384e5a;
+        }
+
+        /* --- Chat Container --- */
+        #chat-container {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* --- Header Bar --- */
+        #header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: #202c33;
+            color: #e9edef;
+            position: fixed;
+            top: 0;
+            width: 100%;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        #user-info-left {
+            display: flex;
+            align-items: center;
+        }
+
+        #user-info-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+
+        .user-id {
+            font-weight: bold;
+            color: #00a884;
+            font-size: 1.1em;
+        }
+
+        .other-user-label {
+            font-weight: 600;
+            color: #e9edef;
+            font-size: 1.0em;
+        }
+
+        .status-online {
+            color: #00a884;
+            font-weight: normal;
+            font-size: 0.9em;
+        }
+
+        .status-offline {
+            color: #8696a0;
+            font-weight: normal;
+            font-size: 0.9em;
+        }
+
+        /* --- Messages Container --- */
+        #messages {
+            list-style-type: none;
+            margin: 80px 0 80px 0;
+            padding: 20px;
+            overflow-y: auto;
+            width: 100%;
+            box-sizing: border-box;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        /* --- Message Bubbles --- */
+        .message-bubble {
+            display: inline-flex;
+            flex-direction: column;
+            width: fit-content;
+            max-width: 65%;
+            margin-bottom: 12px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            position: relative;
+            word-wrap: break-word;
+            box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
+            transition: background-color 0.2s ease;
+        }
+
+        .message-bubble:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .my-message {
+            background-color: #005c4b;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+
+        .their-message {
+            background-color: #202c33;
+            align-self: flex-start;
+            margin-right: auto;
+        }
+
+        /* --- Message Actions --- */
+        .message-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 5;
+        }
+
+        .message-bubble:hover .message-actions {
+            opacity: 1;
+        }
+
+        .message-actions-btn {
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+            border-radius: 12px;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e9edef;
+            font-size: 12px;
+            transition: background-color 0.2s ease;
+        }
+
+        .message-actions-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        /* --- Message Actions Menu --- */
+        .message-actions-menu {
+            position: absolute;
+            top: 30px;
+            right: 0;
+            background: #2a3942;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            min-width: 180px;
+            z-index: 100;
+            display: none;
+            overflow: hidden;
+        }
+
+        .message-actions-menu.show {
+            display: block;
+        }
+
+        .message-action-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #e9edef;
+            font-size: 14px;
+            transition: background-color 0.2s ease;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .message-action-item:hover {
+            background: #384e5a;
+        }
+
+        .message-action-item.danger {
+            color: #ff6b6b;
+        }
+
+        .message-action-item.danger:hover {
+            background: #4a2c2c;
+        }
+
+        /* --- Reactions --- */
+        .message-reactions {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+            flex-wrap: wrap;
+        }
+
+        .reaction {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: background-color 0.2s ease;
+            color: #e9edef;
+        }
+
+        .reaction:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .reaction-count {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        /* --- Reply Container --- */
+        .reply-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid #00a884;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.9em;
+            position: relative;
+        }
+
+        .reply-text {
+            color: #8696a0;
+            margin-bottom: 4px;
+            font-size: 0.8em;
+        }
+
+        .reply-message {
+            color: #e9edef;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* --- Edit Mode --- */
+        .message-edit-mode {
+            background: rgba(0, 168, 132, 0.1);
+            border: 1px solid #00a884;
+            border-radius: 8px;
+            padding: 4px 8px;
+        }
+
+        .message-edit-input {
+            background: transparent;
+            border: none;
+            color: #e9edef;
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+            width: 100%;
+            resize: none;
+            min-height: 20px;
+        }
+
+        .edit-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            justify-content: flex-end;
+        }
+
+        .edit-btn {
+            background: #00a884;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 12px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .edit-btn.cancel {
+            background: #8696a0;
+        }
+
+        .edit-btn:hover {
+            opacity: 0.8;
+        }
+
+        /* --- Forward Indicator --- */
+        .forward-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #8696a0;
+            font-size: 0.8em;
+            margin-bottom: 4px;
+        }
+
+        .message-time {
+            font-size: 0.7em;
+            color: rgba(255, 255, 255, 0.6);
+            align-self: flex-end;
+            margin-top: 3px;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* --- Input Form --- */
+        #form {
+            display: flex;
+            align-items: flex-end;
+            padding: 8px 10px;
+            background-color: #1f2c33;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        #input {
+            flex-grow: 1;
+            min-height: 40px;
+            max-height: 120px;
+            padding: 10px 15px;
+            margin: 0 8px;
+            border: none;
+            border-radius: 20px;
+            background-color: #2a3942;
+            color: #e9edef;
+            resize: none;
+            overflow-y: auto;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+
+        #send-button {
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            margin: 0 3px;
+            border: none;
+            border-radius: 50%;
+            background-color: #00a884;
+            color: white;
+            cursor: pointer;
+        }
+
+        .demo-info {
+            background-color: #1f2c33;
+            padding: 15px;
+            margin: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #00a884;
+        }
+
+        .notification {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2a3942;
+            color: #e9edef;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+    </style>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+
+    <div id="initial-user-selection">
+        <h1>Who are you chatting as?</h1>
+        <div class="user-buttons">
+            <button onclick="selectUser('i')">Chat as: i</button>
+            <button onclick="selectUser('x')">Chat as: x</button>
+        </div>
+        <p>(Select a user to begin chat simulation)</p>
+        
+        <div class="demo-info">
+            <strong>🚀 Complete Message Actions Demo</strong><br>
+            This demo showcases comprehensive message actions:<br>
+            • <strong>Reply</strong> - Click reply button to quote messages<br>
+            • <strong>Edit</strong> - Edit your own sent messages<br>
+            • <strong>Delete</strong> - Remove messages (for sender only)<br>
+            • <strong>Reactions</strong> - Add emoji reactions to any message<br>
+            • <strong>Copy</strong> - Copy message text to clipboard<br>
+            • <strong>Forward</strong> - Forward messages to the other user<br>
+            • <strong>Download</strong> - Download media files<br><br>
+            <em>Hover over any message to see the actions menu (⋮)</em>
+        </div>
+    </div>
+
+    <div id="chat-container">
+        
+        <div id="header-bar">
+            <div id="user-info-left">
+                <span id="my-user-id-display" class="user-id"></span>
+            </div>
+            <div id="user-info-right">
+                <span id="other-user-name" class="other-user-label"></span>
+                <span id="other-user-status" class="status-offline"></span>
+            </div>
+        </div>
+        
+        <ul id="messages"></ul>
+
+        <form id="form" action="">
+            <textarea id="input" autocomplete="off" placeholder="Type a message..." rows="1"></textarea>
+            <button id="send-button" type="submit">Send</button>
+        </form>
+
+    </div>
+
+    <script>
+        let currentUser = null;
+        let messageIdCounter = 1;
+        let replyToMessage = null;
+        let activeMessageActions = null;
+        let messages = [];
+
+        function createMessage(sender, message, type = 'text', replyTo = null, forwarded = false) {
+            const messageId = 'msg-' + messageIdCounter++;
+            const messageData = {
+                _id: messageId,
+                senderID: sender,
+                message: message,
+                type: type,
+                replyTo: replyTo,
+                forwarded: forwarded,
+                reactions: {},
+                edited: false,
+                timestamp: new Date().toISOString()
+            };
+            
+            messages.push(messageData);
+            renderMessage(messageData);
+            return messageId;
+        }
+
+        function renderMessage(messageData) {
+            const messagesContainer = document.getElementById('messages');
+            const isMyMessage = messageData.senderID === currentUser;
+            
+            const li = document.createElement('li');
+            li.className = `message-bubble ${isMyMessage ? 'my-message' : 'their-message'}`;
+            li.dataset.messageId = messageData._id;
+
+            // Message Actions Container
+            const actionsContainer = document.createElement('div');
+            actionsContainer.className = 'message-actions';
+            
+            const actionsBtn = document.createElement('button');
+            actionsBtn.className = 'message-actions-btn';
+            actionsBtn.innerHTML = '⋮';
+            actionsBtn.onclick = (e) => {
+                e.stopPropagation();
+                toggleMessageActions(messageData._id);
+            };
+            
+            actionsContainer.appendChild(actionsBtn);
+            li.appendChild(actionsContainer);
+
+            // Reply Container
+            if (messageData.replyTo) {
+                const replyContainer = document.createElement('div');
+                replyContainer.className = 'reply-container';
+                
+                const replyText = document.createElement('div');
+                replyText.className = 'reply-text';
+                replyText.textContent = `Replying to ${messageData.replyTo.senderID}`;
+                
+                const replyMessage = document.createElement('div');
+                replyMessage.className = 'reply-message';
+                replyMessage.textContent = messageData.replyTo.message;
+                
+                replyContainer.appendChild(replyText);
+                replyContainer.appendChild(replyMessage);
+                li.appendChild(replyContainer);
+            }
+
+            // Forward Indicator
+            if (messageData.forwarded) {
+                const forwardIndicator = document.createElement('div');
+                forwardIndicator.className = 'forward-indicator';
+                forwardIndicator.innerHTML = `<span>⤴</span> Forwarded message`;
+                li.appendChild(forwardIndicator);
+            }
+
+            // Message Content
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
+            if (messageData.type === 'image') {
+                const img = document.createElement('img');
+                img.src = messageData.message;
+                img.style.cssText = 'max-width: 100%; height: auto; border-radius: 6px;';
+                contentDiv.appendChild(img);
+            } else {
+                const textSpan = document.createElement('span');
+                textSpan.className = 'message-text';
+                textSpan.textContent = messageData.message;
+                contentDiv.appendChild(textSpan);
+            }
+            
+            li.appendChild(contentDiv);
+
+            // Reactions
+            if (messageData.reactions && Object.keys(messageData.reactions).length > 0) {
+                const reactionsContainer = document.createElement('div');
+                reactionsContainer.className = 'message-reactions';
+                
+                for (const [emoji, users] of Object.entries(messageData.reactions)) {
+                    const reactionBtn = document.createElement('button');
+                    reactionBtn.className = 'reaction';
+                    reactionBtn.innerHTML = `${emoji}<span class="reaction-count">${users.length}</span>`;
+                    reactionBtn.onclick = () => toggleReaction(messageData._id, emoji);
+                    reactionsContainer.appendChild(reactionBtn);
+                }
+                
+                li.appendChild(reactionsContainer);
+            }
+
+            // Time
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'message-time';
+            timeSpan.textContent = messageData.edited ? `edited ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` : new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            
+            li.appendChild(timeSpan);
+            messagesContainer.appendChild(li);
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function toggleMessageActions(messageId) {
+            closeMessageActions();
+            
+            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (!messageElement) return;
+            
+            const messageData = messages.find(m => m._id === messageId);
+            const isMyMessage = messageData.senderID === currentUser;
+            
+            const menu = document.createElement('div');
+            menu.className = 'message-actions-menu show';
+            menu.id = 'message-actions-menu';
+            
+            // Reply
+            menu.appendChild(createActionItem('↩️ Reply', () => {
+                startReply(messageData);
+                closeMessageActions();
+            }));
+            
+            // Copy
+            menu.appendChild(createActionItem('📋 Copy', () => {
+                copyMessage(messageData);
+                closeMessageActions();
+            }));
+            
+            if (isMyMessage) {
+                // Edit (text only)
+                if (messageData.type === 'text') {
+                    menu.appendChild(createActionItem('✏️ Edit', () => {
+                        editMessage(messageData);
+                        closeMessageActions();
+                    }));
+                }
+                
+                // Delete
+                menu.appendChild(createActionItem('🗑️ Delete', () => {
+                    deleteMessage(messageData);
+                    closeMessageActions();
+                }, 'danger'));
+            }
+            
+            // Forward
+            menu.appendChild(createActionItem('⤴️ Forward', () => {
+                forwardMessage(messageData);
+                closeMessageActions();
+            }));
+            
+            // Download (media only)
+            if (messageData.type === 'image' || messageData.type === 'document') {
+                menu.appendChild(createActionItem('💾 Download', () => {
+                    downloadFile(messageData);
+                    closeMessageActions();
+                }));
+            }
+            
+            // Reactions Section
+            const divider = document.createElement('div');
+            divider.style.cssText = 'height: 1px; background: #384e5a; margin: 4px 0;';
+            menu.appendChild(divider);
+            
+            const label = document.createElement('div');
+            label.style.cssText = 'padding: 5px 16px; color: #8696a0; font-size: 12px;';
+            label.textContent = 'React';
+            menu.appendChild(label);
+            
+            const reactionsContainer = document.createElement('div');
+            reactionsContainer.style.cssText = 'display: flex; gap: 4px; padding: 8px 16px;';
+            
+            const emojis = ['❤️', '👍', '😂', '😮', '😢', '👎'];
+            emojis.forEach(emoji => {
+                const btn = document.createElement('button');
+                btn.style.cssText = 'background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px; border-radius: 4px;';
+                btn.textContent = emoji;
+                btn.onclick = () => {
+                    addReaction(messageData, emoji);
+                    closeMessageActions();
+                };
+                reactionsContainer.appendChild(btn);
+            });
+            
+            menu.appendChild(reactionsContainer);
+            
+            // Position menu
+            const rect = messageElement.getBoundingClientRect();
+            menu.style.top = `${rect.bottom + 5}px`;
+            menu.style.right = '0';
+            
+            messageElement.appendChild(menu);
+            activeMessageActions = menu;
+            
+            setTimeout(() => {
+                document.addEventListener('click', closeMessageActions);
+            }, 100);
+        }
+
+        function closeMessageActions() {
+            if (activeMessageActions) {
+                activeMessageActions.remove();
+                activeMessageActions = null;
+                document.removeEventListener('click', closeMessageActions);
+            }
+        }
+
+        function createActionItem(text, onClick, className = '') {
+            const item = document.createElement('button');
+            item.className = `message-action-item ${className}`;
+            item.textContent = text;
+            item.onclick = onClick;
+            return item;
+        }
+
+        function startReply(messageData) {
+            replyToMessage = messageData;
+            showNotification(`Replying to ${messageData.senderID}`);
+            document.getElementById('input').focus();
+        }
+
+        function cancelReply() {
+            replyToMessage = null;
+            const preview = document.getElementById('reply-preview');
+            if (preview) preview.remove();
+        }
+
+        function copyMessage(messageData) {
+            if (messageData.type === 'text') {
+                navigator.clipboard.writeText(messageData.message).then(() => {
+                    showNotification('Message copied to clipboard');
+                });
+            }
+        }
+
+        function editMessage(messageData) {
+            const messageElement = document.querySelector(`[data-message-id="${messageData._id}"]`);
+            const contentDiv = messageElement.querySelector('.message-content');
+            
+            const editContainer = document.createElement('div');
+            editContainer.className = 'message-edit-mode';
+            
+            const editInput = document.createElement('textarea');
+            editInput.className = 'message-edit-input';
+            editInput.value = messageData.message;
+            editInput.rows = 2;
+            
+            const editActions = document.createElement('div');
+            editActions.className = 'edit-actions';
+            editActions.innerHTML = `
+                <button class="edit-btn cancel" onclick="cancelEdit('${messageData._id}')">Cancel</button>
+                <button class="edit-btn" onclick="saveEdit('${messageData._id}')">Save</button>
+            `;
+            
+            editContainer.appendChild(editInput);
+            editContainer.appendChild(editActions);
+            
+            contentDiv.style.display = 'none';
+            contentDiv.parentNode.insertBefore(editContainer, contentDiv.nextSibling);
+            
+            editInput.focus();
+        }
+
+        function cancelEdit(messageId) {
+            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+            const editContainer = messageElement.querySelector('.message-edit-mode');
+            const contentDiv = messageElement.querySelector('.message-content');
+            
+            if (editContainer) editContainer.remove();
+            contentDiv.style.display = 'block';
+        }
+
+        function saveEdit(messageId) {
+            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+            const editInput = messageElement.querySelector('.message-edit-input');
+            const newText = editInput.value.trim();
+            
+            if (newText) {
+                const messageData = messages.find(m => m._id === messageId);
+                messageData.message = newText;
+                messageData.edited = true;
+                
+                // Update UI
+                const textSpan = messageElement.querySelector('.message-text');
+                textSpan.textContent = newText;
+                
+                const timeSpan = messageElement.querySelector('.message-time');
+                timeSpan.textContent = `edited ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+                
+                cancelEdit(messageId);
+                showNotification('Message edited');
+            }
+        }
+
+        function deleteMessage(messageData) {
+            if (confirm('Are you sure you want to delete this message?')) {
+                const messageElement = document.querySelector(`[data-message-id="${messageData._id}"]`);
+                messageElement.style.opacity = '0.5';
+                messageElement.style.pointerEvents = 'none';
+                
+                const contentDiv = messageElement.querySelector('.message-content');
+                contentDiv.innerHTML = '<span style="color: #8696a0; font-style: italic;">This message was deleted</span>';
+                
+                const actionsContainer = messageElement.querySelector('.message-actions');
+                if (actionsContainer) actionsContainer.remove();
+                
+                showNotification('Message deleted');
+            }
+        }
+
+        function forwardMessage(messageData) {
+            const forwardedData = {
+                _id: 'msg-' + messageIdCounter++,
+                senderID: currentUser === 'i' ? 'x' : 'i',
+                message: messageData.message,
+                type: messageData.type,
+                forwarded: true,
+                originalSender: messageData.senderID,
+                reactions: {},
+                edited: false,
+                timestamp: new Date().toISOString()
+            };
+            
+            messages.push(forwardedData);
+            renderMessage(forwardedData);
+            showNotification('Message forwarded');
+        }
+
+        function downloadFile(messageData) {
+            if (messageData.type === 'image' || messageData.type === 'document') {
+                const link = document.createElement('a');
+                link.href = messageData.message;
+                link.download = 'download';
+                link.click();
+                showNotification('Download started');
+            }
+        }
+
+        function addReaction(messageData, emoji) {
+            if (!messageData.reactions[emoji]) {
+                messageData.reactions[emoji] = [];
+            }
+            
+            if (!messageData.reactions[emoji].includes(currentUser)) {
+                messageData.reactions[emoji].push(currentUser);
+                updateReactionsUI(messageData._id, messageData.reactions);
+                showNotification(`Added ${emoji} reaction`);
+            }
+        }
+
+        function toggleReaction(messageId, emoji) {
+            const messageData = messages.find(m => m._id === messageId);
+            if (!messageData) return;
+            
+            const index = messageData.reactions[emoji]?.indexOf(currentUser);
+            if (index > -1) {
+                messageData.reactions[emoji].splice(index, 1);
+                if (messageData.reactions[emoji].length === 0) {
+                    delete messageData.reactions[emoji];
+                }
+            } else {
+                if (!messageData.reactions[emoji]) {
+                    messageData.reactions[emoji] = [];
+                }
+                messageData.reactions[emoji].push(currentUser);
+            }
+            
+            updateReactionsUI(messageId, messageData.reactions);
+        }
+
+        function updateReactionsUI(messageId, reactions) {
+            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+            let reactionsContainer = messageElement.querySelector('.message-reactions');
+            
+            if (Object.keys(reactions).length === 0) {
+                if (reactionsContainer) reactionsContainer.remove();
+                return;
+            }
+            
+            if (!reactionsContainer) {
+                reactionsContainer = document.createElement('div');
+                reactionsContainer.className = 'message-reactions';
+                
+                const timeSpan = messageElement.querySelector('.message-time');
+                messageElement.insertBefore(reactionsContainer, timeSpan);
+            }
+            
+            reactionsContainer.innerHTML = '';
+            
+            for (const [emoji, users] of Object.entries(reactions)) {
+                const reactionBtn = document.createElement('button');
+                reactionBtn.className = 'reaction';
+                reactionBtn.innerHTML = `${emoji}<span class="reaction-count">${users.length}</span>`;
+                reactionBtn.onclick = () => toggleReaction(messageId, emoji);
+                reactionsContainer.appendChild(reactionBtn);
+            }
+        }
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function selectUser(userId) {
+            currentUser = userId;
+            
+            document.getElementById('initial-user-selection').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'flex';
+            document.getElementById('my-user-id-display').textContent = 'USER ' + userId.toUpperCase();
+            
+            const otherUser = userId === 'i' ? 'x' : 'i';
+            document.getElementById('other-user-name').textContent = 'USER ' + otherUser.toUpperCase();
+            document.getElementById('other-user-status').textContent = 'Online';
+            document.getElementById('other-user-status').className = 'status-online';
+            
+            // Load demo messages
+            loadDemoMessages();
+        }
+
+        function loadDemoMessages() {
+            // Create sample messages for demonstration
+            createMessage('i', 'Hello there! This is a sample message to demonstrate the actions.', 'text');
+            createMessage('x', 'Hi! How are you doing today?', 'text');
+            createMessage('i', 'I\'m doing great! Check out this photo:', 'text');
+            createMessage('i', 'https://picsum.photos/seed/demo1/300/200.jpg', 'image');
+            createMessage('x', 'Nice photo! 👍', 'text');
+            createMessage('i', 'Thanks! You can hover over any message and click the ⋮ menu to see all available actions.', 'text');
+            createMessage('x', 'That\'s awesome! Let me try editing this message...', 'text');
+            
+            // Add some reactions
+            const msg1 = messages.find(m => m.senderID === 'x' && m.message.includes('Hi!'));
+            if (msg1) {
+                msg1.reactions = { '❤️': ['i'] };
+                updateReactionsUI(msg1._id, msg1.reactions);
+            }
+            
+            const msg2 = messages.find(m => m.senderID === 'x' && m.message.includes('Nice photo'));
+            if (msg2) {
+                msg2.reactions = { '👍': ['i'] };
+                updateReactionsUI(msg2._id, msg2.reactions);
+            }
+        }
+
+        // Form submission
+        document.getElementById('form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('input');
+            if (input.value.trim()) {
+                const messageData = {
+                    _id: 'msg-' + messageIdCounter++,
+                    senderID: currentUser,
+                    message: input.value.trim(),
+                    type: 'text',
+                    replyTo: replyToMessage,
+                    forwarded: false,
+                    reactions: {},
+                    edited: false,
+                    timestamp: new Date().toISOString()
+                };
+                
+                messages.push(messageData);
+                renderMessage(messageData);
+                
+                input.value = '';
+                cancelReply();
+            }
+        });
+
+        // Auto-resize textarea
+        document.getElementById('input').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+    </script>
+</body>
+</html>

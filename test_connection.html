@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connection Test</title>
+    <script src="/socket.io/socket.io.js"></script>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+    <h1>Socket.IO Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="logs"></div>
+    
+    <script>
+        const socket = io('http://localhost:3000');
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        
+        function log(message) {
+            console.log(message);
+            logsDiv.innerHTML += '<p>' + new Date().toLocaleTimeString() + ': ' + message + '</p>';
+        }
+        
+        socket.on('connect', () => {
+            statusDiv.innerHTML = '✅ Connected! Socket ID: ' + socket.id;
+            log('Connected to server');
+            
+            // Test user selection
+            socket.emit('select user', 'i');
+        });
+        
+        socket.on('disconnect', () => {
+            statusDiv.innerHTML = '❌ Disconnected';
+            log('Disconnected from server');
+        });
+        
+        socket.on('user selected', (success) => {
+            log('User selection result: ' + success);
+            if (success) {
+                statusDiv.innerHTML = '✅ User selected successfully!';
+            } else {
+                statusDiv.innerHTML = '❌ User selection failed';
+            }
+        });
+        
+        socket.on('presence update', (data) => {
+            log('Presence update: ' + JSON.stringify(data, null, 2));
+        });
+        
+        socket.on('connect_error', (error) => {
+            statusDiv.innerHTML = '❌ Connection error: ' + error.message;
+            log('Connection error: ' + error.message);
+        });
+    </script>
+</body>
+</html>

@@ -566,14 +566,35 @@ function toggleMessageActions(messageId) {
     
     menu.appendChild(reactionsContainer);
     
-    // Position the menu
-    const actionsBtn = messageElement.querySelector('.message-actions-btn');
+    // Position the menu using fixed positioning
+    const actionsBtn = messageElement.querySelector('.message-actions');
     const rect = actionsBtn.getBoundingClientRect();
-    menu.style.top = `${rect.bottom + 5}px`;
-    menu.style.right = '0';
     
-    messageElement.appendChild(menu);
+    // Calculate position to prevent menu from going off-screen
+    let leftPos = rect.left;
+    let topPos = rect.bottom + 5;
+    
+    // Adjust if menu would go off right edge
+    if (leftPos + 180 > window.innerWidth) {
+        leftPos = window.innerWidth - 190;
+    }
+    
+    // Adjust if menu would go off bottom edge
+    if (topPos + 300 > window.innerHeight) {
+        topPos = rect.top - 250;
+    }
+    
+    menu.style.left = `${leftPos}px`;
+    menu.style.top = `${topPos}px`;
+    
+    // Add to body (not to message element)
+    document.body.appendChild(menu);
     activeMessageActions = menu;
+    
+    // Prevent menu click from closing itself
+    menu.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
     
     // Close menu when clicking outside
     setTimeout(() => {
@@ -598,16 +619,24 @@ function createActionItem(text, onClick, className = '') {
 }
 
 function getMessageData(messageId) {
-    // This would normally fetch from your stored messages
-    // For now, we'll create a mock object based on DOM inspection
+    // For the demo, we'll extract data from the DOM
     const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
     if (!messageElement) return null;
     
+    const isMyMessage = messageElement.classList.contains('my-message');
+    const senderID = isMyMessage ? currentUser : (currentUser === 'i' ? 'x' : 'i');
+    
+    // Extract message content
+    const textContent = messageElement.querySelector('.message-text')?.textContent || '';
+    const imageSrc = messageElement.querySelector('img')?.src || '';
+    const message = textContent || imageSrc || '';
+    const type = textContent ? 'text' : (imageSrc ? 'image' : 'text');
+    
     return {
         _id: messageId,
-        senderID: messageElement.classList.contains('my-message') ? currentUser : (currentUser === 'i' ? 'x' : 'i'),
-        message: messageElement.querySelector('.message-text')?.textContent || messageElement.querySelector('img')?.src || '',
-        type: messageElement.querySelector('.message-text') ? 'text' : 'image',
+        senderID: senderID,
+        message: message,
+        type: type,
         reactions: {}
     };
 }

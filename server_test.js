@@ -154,9 +154,77 @@ io.on('connection', async (socket) => {
         // Add ID and status for testing
         msg._id = Date.now().toString();
         msg.status = 'sent';
+        msg.edited = false;
+        msg.forwarded = msg.forwarded || false;
+        msg.reactions = {};
         console.log(`Message received: ${msg.message} from ${msg.senderID}`);
         
         io.emit('chat message', msg); 
+    });
+    
+    // --- Edit Message Event ---
+    socket.on('edit message', async (data) => {
+        console.log(`Edit request: ${data.messageId} by ${data.senderID}`);
+        
+        // Broadcast message edit to all clients
+        io.emit('message edited', {
+            messageId: data.messageId,
+            newMessage: data.newMessage,
+            edited: true,
+            timestamp: new Date().toISOString()
+        });
+    });
+    
+    // --- Delete Message Event ---
+    socket.on('delete message', async (data) => {
+        console.log(`Delete request: ${data.messageId} by ${data.senderID}`);
+        
+        // Broadcast message deletion to all clients
+        io.emit('message deleted', {
+            messageId: data.messageId
+        });
+    });
+    
+    // --- Forward Message Event ---
+    socket.on('forward message', async (data) => {
+        console.log(`Forward request from ${data.originalSender}`);
+        
+        const forwardMsg = {
+            _id: Date.now().toString(),
+            senderID: currentUser === 'i' ? 'x' : 'i', // Current user receives forwarded message
+            message: data.message,
+            type: data.type,
+            forwarded: true,
+            originalSender: data.originalSender,
+            status: 'sent',
+            timestamp: data.timestamp
+        };
+        
+        io.emit('chat message', forwardMsg);
+    });
+    
+    // --- Add Reaction Event ---
+    socket.on('add reaction', async (data) => {
+        console.log(`Reaction added: ${data.emoji} to ${data.messageId} by ${data.userId}`);
+        
+        // Broadcast reaction to all clients
+        io.emit('reaction added', {
+            messageId: data.messageId,
+            emoji: data.emoji,
+            userId: data.userId
+        });
+    });
+    
+    // --- Toggle Reaction Event ---
+    socket.on('toggle reaction', async (data) => {
+        console.log(`Reaction toggled: ${data.emoji} on ${data.messageId} by ${data.userId}`);
+        
+        // Broadcast reaction toggle to all clients
+        io.emit('reaction toggled', {
+            messageId: data.messageId,
+            emoji: data.emoji,
+            userId: data.userId
+        });
     });
 
     // --- Read Receipt Event ---
