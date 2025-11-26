@@ -189,9 +189,7 @@ socket.on('message status update', (data) => {
 });
 
 
-socket.on('available users', (inUseList) => {
-    // ... (User status update logic remains the same)
-}); 
+ 
 
 
 
@@ -247,8 +245,8 @@ socket.on('user selected', (success) => {
             pendingHistory = null; // Clear pending history
         }
         
-        // Update other user status display
-        updateOtherUserStatus();
+        // Request latest presence data
+        socket.emit('get presence update');
     } else {
         alert('This user is already taken. Please select the other user.');
     }
@@ -260,23 +258,52 @@ function updateOtherUserStatus() {
 }
 
 socket.on('available users', (inUseList) => {
-    // Update the other user status based on who's available
-    const otherUser = currentUser === 'i' ? 'x' : 'i';
-    const otherUserStatus = document.getElementById('other-user-status');
-    
-    if (inUseList.includes(otherUser)) {
-        otherUserStatus.textContent = 'Online';
-        otherUserStatus.className = 'status-online';
-    } else {
-        otherUserStatus.textContent = 'Offline';
-        otherUserStatus.className = 'status-offline';
-    }
+    console.log('Available users:', inUseList);
     
     // Enable/disable buttons based on availability
     const userButtons = document.querySelectorAll('.user-buttons button');
     userButtons.forEach(button => {
         const userId = button.getAttribute('data-user');
         button.disabled = inUseList.includes(userId) && userId !== currentUser;
+    });
+});
+
+// --- Presence Update Handler ---
+socket.on('presence update', (presenceData) => {
+    console.log('Presence update received:', presenceData);
+    
+    if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        const otherUserStatus = document.getElementById('other-user-status');
+        const otherPresence = presenceData[otherUser];
+        
+        if (otherPresence) {
+            if (otherPresence.isOnline) {
+                otherUserStatus.textContent = 'Online';
+                otherUserStatus.className = 'status-online';
+            } else {
+                otherUserStatus.textContent = otherPresence.timeAgo || 'Offline';
+                otherUserStatus.className = 'status-offline';
+            }
+        }
+    }
+    
+    // Update user selection buttons status
+    const userButtons = document.querySelectorAll('.user-buttons button');
+    userButtons.forEach(button => {
+        const userId = button.getAttribute('data-user');
+        const userPresence = presenceData[userId];
+        
+        if (userPresence && !userPresence.isOnline && userPresence.timeAgo) {
+            // Update button text to show last seen time
+            if (userId !== currentUser) {
+                const originalText = button.getAttribute('data-original-text') || button.textContent;
+                if (!button.getAttribute('data-original-text')) {
+                    button.setAttribute('data-original-text', originalText);
+                }
+                button.textContent = `${originalText} (${userPresence.timeAgo})`;
+            }
+        }
     });
 });
 

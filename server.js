@@ -56,6 +56,20 @@ const activeUsers = {
     'x': null  
 };
 
+// --- User Presence Tracking ---
+const userPresence = {
+    'i': { 
+        isOnline: false, 
+        lastSeen: null,
+        socketId: null 
+    },
+    'x': { 
+        isOnline: false, 
+        lastSeen: null,
+        socketId: null 
+    }
+};
+
 
 // --- MongoDB Connection Logic ---
 async function connectDB() {
@@ -82,6 +96,38 @@ async function connectDB() {
         console.error("Could not connect to MongoDB. Error details:", e.message);
         process.exit(1); 
     }
+}
+
+// --- Helper Functions ---
+function getTimeAgo(timestamp) {
+    if (!timestamp) return null;
+    
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now - past;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+}
+
+function broadcastPresenceUpdate() {
+    const presenceData = {};
+    
+    for (const userId in userPresence) {
+        presenceData[userId] = {
+            isOnline: userPresence[userId].isOnline,
+            lastSeen: userPresence[userId].lastSeen,
+            timeAgo: userPresence[userId].isOnline ? 'online' : getTimeAgo(userPresence[userId].lastSeen)
+        };
+    }
+    
+    io.emit('presence update', presenceData);
+    console.log('Presence update broadcasted:', presenceData);
 }
 
 // --- Server and Socket.IO Logic ---
@@ -114,7 +160,18 @@ function startServerLogic() {
         console.log('A user connected:', socket.id);
 
         const initialInUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
-        socket.emit('available users', initialInUseList); 
+        socket.emit('available users', initialInUseList);
+        
+        // Send initial presence data
+        const presenceData = {};
+        for (const userId in userPresence) {
+            presenceData[userId] = {
+                isOnline: userPresence[userId].isOnline,
+                lastSeen: userPresence[userId].lastSeen,
+                timeAgo: userPresence[userId].isOnline ? 'online' : getTimeAgo(userPresence[userId].lastSeen)
+            };
+        }
+        socket.emit('presence update', presenceData); 
 
         try {
             // Include status in history (messages default to 'sent' if status field is missing)
@@ -128,12 +185,35 @@ function startServerLogic() {
         socket.on('select user', (userId) => {
             if (activeUsers[userId] === null) {
                 activeUsers[userId] = socket.id;
+                
+                // Update presence tracking
+                userPresence[userId].isOnline = true;
+                userPresence[userId].lastSeen = new Date().toISOString();
+                userPresence[userId].socketId = socket.id;
+                
                 socket.emit('user selected', true);
+                console.log(`User ${userId} is now online`);
+                
+                // Broadcast presence update
+                broadcastPresenceUpdate();
             } else {
                 socket.emit('user selected', false);
             }
             const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
             io.emit('available users', inUseList);
+        });
+        
+        // --- Get Presence Update Event ---
+        socket.on('get presence update', () => {
+            const presenceData = {};
+            for (const userId in userPresence) {
+                presenceData[userId] = {
+                    isOnline: userPresence[userId].isOnline,
+                    lastSeen: userPresence[userId].lastSeen,
+                    timeAgo: userPresence[userId].isOnline ? 'online' : getTimeAgo(userPresence[userId].lastSeen)
+                };
+            }
+            socket.emit('presence update', presenceData);
         });
         
         // --- Chat Message Event ---
@@ -183,15 +263,29 @@ function startServerLogic() {
         socket.on('disconnect', () => {
             const disconnectedUser = Object.keys(activeUsers).find(key => activeUsers[key] === socket.id);
             if (disconnectedUser) {
-                activeUsers[disconnectedUser] = null; 
+                activeUsers[disconnectedUser] = null;
+                
+                // Update presence tracking
+                userPresence[disconnectedUser].isOnline = false;
+                userPresence[disconnectedUser].lastSeen = new Date().toISOString();
+                userPresence[disconnectedUser].socketId = null;
+                
+                console.log(`User ${disconnectedUser} is now offline`);
+                
                 const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
                 io.emit('available users', inUseList);
+                
+                // Broadcast presence update
+                broadcastPresenceUpdate();
             }
         }); 
     }); 
 
     server.listen(port, () => {
         console.log(`Server listening on port ${port}`);
+        
+        // Start periodic presence updates (every 30 seconds)
+        setInterval(broadcastPresenceUpdate, 30000);
     });
 } 
 

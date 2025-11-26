@@ -1,7 +1,8 @@
-## Fix Message Box Sizing Issue
+## Implement User Presence & Online Duration System
 
-[x] Examine current CSS for message bubble sizing
-[x] Identify why message boxes are too large
-[x] Modify CSS to make message boxes fit content exactly
-[x] Test the fix with different message lengths
-[x] Ensure media files also size correctly
+[x] Add online status tracking to server-side
+[x] Implement duration calculation logic
+[x] Update client to display online duration
+[x] Add real-time presence updates
+[x] Show "X is online" or "X was online 2 hours ago"
+[x] Test the presence system with both users
