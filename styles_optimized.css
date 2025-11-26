@@ -98,10 +98,10 @@ body {
 
 /* --- Message Bubbles --- */
 .message-bubble {
-    display: inline-flex; /* Changed from flex to inline-flex */
+    display: inline-flex; /* CRITICAL: Changed from flex to inline-flex for proper sizing */
     flex-direction: column;
-    width: fit-content; /* NEW: Size to content exactly */
-    max-width: 65%;
+    width: fit-content; /* CRITICAL: Size to content exactly */
+    max-width: 65%; /* Maximum width constraint */
     margin-bottom: 12px;
     padding: 8px 10px;
     border-radius: 10px;
@@ -125,6 +125,8 @@ body {
 .message-text, .message-content a {
     font-size: 0.95em;
     padding-right: 35px; /* Space for time/status */
+    line-height: 1.4;
+    word-break: break-word; /* Better word breaking */
 }
 
 /* Styles for embedded media */
@@ -186,6 +188,7 @@ body {
     overflow-y: auto;
     font-size: 1em;
     box-sizing: border-box;
+    line-height: 1.4;
 }
 
 #form button {
@@ -210,4 +213,15 @@ body {
     width: 24px;
     height: 24px;
     vertical-align: middle;
+}
+
+/* --- Additional optimizations for better text handling --- */
+.message-bubble {
+    min-width: 60px; /* Minimum width for very short messages */
+}
+
+/* Ensure proper text alignment in RTL scenarios */
+.message-text {
+    text-align: left;
+    unicode-bidi: plaintext;
 }
