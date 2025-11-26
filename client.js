@@ -13,8 +13,8 @@ const headerBar = document.getElementById('header-bar');
 const currentUserDisplay = document.getElementById('my-user-id-display');
 const otherUserStatus = document.getElementById('other-user-status');
 const selectionScreen = document.getElementById('initial-user-selection');
-const chatContainer = document.getElementById('chat-container');
-// NEW: File upload elements
+const chatContainer = document.getElementById('chat-container'); // CRITICAL: Reference to the new wrapper
+// File upload elements
 const photoInput = document.getElementById('photo-input');
 const photoButton = document.getElementById('photo-button'); 
 
@@ -29,27 +29,23 @@ function scrollToBottom() {
     messages.scrollTop = messages.scrollHeight;
 }
 
-// --- File Upload Logic (NEW) ---
+// --- File Upload Logic ---
 
-// Listener for when a file is selected
 photoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
         uploadFile(file);
     }
-    // Clear input value so the same file can be selected again
     e.target.value = null; 
 });
 
-// Function to handle the upload (HTTP POST to server)
 async function uploadFile(file) {
     if (!currentUser) return alert('Please select a user first.');
     
-    // Show a loading/upload indicator (optional)
     chatContainer.style.cursor = 'progress'; 
 
     const formData = new FormData();
-    formData.append('mediaFile', file); // 'mediaFile' must match the Multer field name in server.js
+    formData.append('mediaFile', file); 
 
     try {
         const response = await fetch('/upload', {
@@ -61,13 +57,12 @@ async function uploadFile(file) {
             throw new Error('Upload failed with status: ' + response.status);
         }
 
-        const data = await response.json(); // Data contains { url: '/uploads/...' , type: 'image' | 'video' | 'document' }
+        const data = await response.json(); 
 
-        // Once uploaded, send the URL via Socket.IO
         const messageData = {
             senderID: currentUser,
-            message: data.url,   // The public URL of the file
-            type: data.type,     // image, video, or document
+            message: data.url,
+            type: data.type,
             timestamp: new Date().toISOString()
         };
         socket.emit('chat message', messageData);
@@ -81,7 +76,7 @@ async function uploadFile(file) {
 }
 
 
-// --- Message Rendering Logic (UPDATED) ---
+// --- Message Rendering Logic ---
 
 function createMessageElement(messageData) {
     const senderKey = messageData.senderID || messageData.sender;
@@ -94,7 +89,7 @@ function createMessageElement(messageData) {
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
 
-    // --- Media Rendering Logic (UPDATED) ---
+    // --- Media Rendering Logic ---
     if (messageData.type === 'image') {
         const img = document.createElement('img');
         img.src = messageData.message; 
@@ -106,7 +101,7 @@ function createMessageElement(messageData) {
     } else if (messageData.type === 'video') {
         const video = document.createElement('video');
         video.src = messageData.message;
-        video.controls = true; // Show playback controls
+        video.controls = true; 
         video.style.maxWidth = '300px';
         video.style.maxHeight = '200px';
         video.style.borderRadius = '8px';
@@ -122,14 +117,13 @@ function createMessageElement(messageData) {
         contentDiv.appendChild(docLink);
         
     } else {
-        // Original logic for plain text messages
         const textSpan = document.createElement('span');
         textSpan.className = 'message-text';
         textSpan.textContent = messageData.message;
         contentDiv.appendChild(textSpan);
     }
     
-    li.appendChild(contentDiv); // Append the main content
+    li.appendChild(contentDiv); 
 
     // Time and Status Container
     const timeSpan = document.createElement('span');
@@ -148,13 +142,12 @@ function createMessageElement(messageData) {
     return li;
 }
 
-// Renders a single message to the chat
 function renderMessage(messageData) {
     messages.appendChild(createMessageElement(messageData));
     scrollToBottom();
 }
 
-// --- Socket.IO Event Listeners (Same as before) ---
+// --- Socket.IO Event Listeners ---
 socket.on('chat message', (msg) => {
     const senderKey = msg.senderID || msg.sender;
     if (senderKey === currentUser || senderKey !== currentUser) {
@@ -184,10 +177,12 @@ socket.on('available users', (inUseList) => {
 
 socket.on('user selected', (success) => {
     if (success) {
+        // Hides selection screen
         selectionScreen.style.display = 'none';
-        headerBar.style.display = 'flex';
-        form.style.display = 'flex';
-        chatContainer.style.display = 'flex';
+        
+        // CRITICAL FIX: Show the entire chat container, which contains messages, header, and form
+        chatContainer.style.display = 'flex'; 
+        
         currentUserDisplay.textContent = currentUser;
         input.focus();
     } else {
@@ -200,7 +195,7 @@ socket.on('user selected', (success) => {
 });
 
 
-// --- Initial Setup and Event Handlers (Updated for File Button) ---
+// --- Initial Setup and Event Handlers ---
 
 // Handle the chat message form submission (for text)
 form.addEventListener('submit', (e) => {
@@ -209,7 +204,7 @@ form.addEventListener('submit', (e) => {
         const messageData = {
             senderID: currentUser, 
             message: input.value,
-            type: 'text', // Explicitly define type as text
+            type: 'text',
             timestamp: new Date().toISOString()
         };
         
@@ -230,7 +225,7 @@ document.querySelectorAll('#initial-user-selection button').forEach(button => {
     });
 });
 
-// Attach event listener to the photo button (NEW)
+// Attach event listener to the photo button
 photoButton.addEventListener('click', () => {
     if (currentUser) {
         photoInput.click();
