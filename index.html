@@ -16,6 +16,24 @@
     </div>
 
     <div id="chat-container" style="display: none;">
+    <form id="form" action="">
+        <input 
+            type="file" 
+            id="photo-input" 
+            accept="image/*,video/*,application/pdf" 
+            style="display: none;"
+        >
+        
+        <button id="photo-button" type="button">
+            <svg viewBox="0 0 24 24" width="24" height="24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zM20 5h-3.17L15 3H9L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H4V7h4.05l1.84-2h4.24l1.84 2H20v12z"/></svg>
+        </button>
+        
+        <textarea id="input" autocomplete="off" placeholder="Type a message..." rows="1"></textarea>
+        <button id="send-button" type="submit">
+            <svg viewBox="0 0 24 24" width="24" height="24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+    </form>
+</div>
         
         <div id="header-bar">
             <h3 id="current-user-display">
