@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ebab</title>
     <link rel="stylesheet" href="styles.css"> 
-<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
 <body>
 
@@ -21,13 +20,8 @@
     <div id="chat-container" style="display: none;">
         
         <div id="header-bar">
-            <div id="user-info-left">
-                <span id="my-user-id-display" class="user-id"></span>
-            </div>
-            <div id="user-info-right">
-                <span id="other-user-name" class="other-user-label"></span>
-                <span id="other-user-status" class="status-offline"></span>
-            </div>
+            <span id="my-user-id-display" class="user-id"></span>
+            <span id="other-user-status" class="status-offline"></span>
         </div>
         
         <ul id="messages"></ul>
@@ -55,43 +49,6 @@
     </div>
     
     <script src="/socket.io/socket.io.js"></script>
-    <script src="client_simple.js"></script>
-    
-    <style>
-    /* Simple Delete Button Styles */
-    .delete-btn {
-        position: absolute;
-        top: -5px;
-        right: -8px;
-        opacity: 0;
-        transition: opacity 0.2s ease;
-        z-index: 15;
-        background: rgba(255, 107, 107, 0.9);
-        border: none;
-        border-radius: 50%;
-        width: 24px;
-        height: 24px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 12px;
-        font-weight: bold;
-    }
-
-    .message-bubble:hover .delete-btn {
-        opacity: 1;
-    }
-
-    .delete-btn:hover {
-        background: rgba(255, 107, 107, 1);
-    }
-
-    .deleted-message {
-        color: #8696a0;
-        font-style: italic;
-    }
-    </style>
+    <script src="client.js"></script>
 </body>
 </html>

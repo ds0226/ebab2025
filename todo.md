@@ -1,30 +1,8 @@
-# Message Actions Implementation ✅ COMPLETED
+## Implement User Presence & Online Duration System
 
-## Current State Analysis
-- [x] Enhanced user status system completed
-- [x] Analyze current message structure
-- [x] Design message actions UI/UX
-- [ ] Design message actions UI/UX
-- [x] Implement hover/tap menu for message actions
-- [x] Add reply functionality
-- [x] Add edit functionality
-- [x] Add delete functionality
-- [x] Add emoji reactions
-- [x] Add copy to clipboard
-- [x] Add forward message
-- [x] Add download for media/files
-- [x] Update server-side handlers
-- [x] Add database support for message updates (mocked for demo)
-- [x] Test all message actions
-- [x] Optimize user experience
-
-## Requirements
-- Message actions menu on hover/tap
-- Reply with quoted message
-- Edit sent messages
-- Delete messages (for sender)
-- Emoji reactions (❤️, 👍, 😂, 😮, 😢, 👎)
-- Copy message text
-- Forward to other user
-- Download media files
-- Preserve existing functionality
+[x] Add online status tracking to server-side
+[x] Implement duration calculation logic
+[x] Update client to display online duration
+[x] Add real-time presence updates
+[x] Show "X is online" or "X was online 2 hours ago"
+[x] Test the presence system with both users
