@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ebab</title>
     <link rel="stylesheet" href="styles.css"> 
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
 <body>
 
@@ -20,8 +21,13 @@
     <div id="chat-container" style="display: none;">
         
         <div id="header-bar">
-            <span id="my-user-id-display" class="user-id"></span>
-            <span id="other-user-status" class="status-offline"></span>
+            <div id="user-info-left">
+                <span id="my-user-id-display" class="user-id"></span>
+            </div>
+            <div id="user-info-right">
+                <span id="other-user-name" class="other-user-label"></span>
+                <span id="other-user-status" class="status-offline"></span>
+            </div>
         </div>
         
         <ul id="messages"></ul>

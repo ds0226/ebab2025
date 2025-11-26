@@ -1,6 +1,6 @@
 // client.js - Handles all client-side logic, including file upload and real-time read receipts.
 
-const socket = io('https://ebab2025.onrender.com'); // CRITICAL: Use your deployed URL
+const socket = io('http://localhost:3000'); // Using local test server
 let currentUser = null;
 let pendingHistory = null;
 
@@ -12,8 +12,9 @@ const selectionScreen = document.getElementById('initial-user-selection');
 const chatContainer = document.getElementById('chat-container');
 const currentUserDisplay = document.getElementById('my-user-id-display');
 const otherUserStatus = document.getElementById('other-user-status');
+const otherUserName = document.getElementById('other-user-name');
 const photoInput = document.getElementById('photo-input');
-const photoButton = document.getElementById('photo-button'); 
+const photoButton = document.getElementById('photo-button');
 
 
 // --- Utility Functions ---
@@ -50,7 +51,7 @@ photoInput.addEventListener('change', (e) => {
 
 async function uploadFile(file) {
     if (!currentUser) return alert('Please select a user first.');
-    
+
     chatContainer.style.cursor = 'progress'; 
 
     const formData = new FormData();
@@ -91,7 +92,7 @@ function createMessageElement(messageData) {
     if(messageData._id) {
         li.dataset.id = messageData._id; 
     }
-    
+
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
 
@@ -113,7 +114,7 @@ function createMessageElement(messageData) {
         const docLink = document.createElement('a');
         docLink.href = messageData.message;
         docLink.target = '_blank';
-        docLink.textContent = `📄 Download File (${messageData.message.split('/').pop()})`; 
+        docLink.textContent = `\ud83d\udcc4 Download File (${messageData.message.split('/').pop()})`; 
         // ... (styles)
         contentDiv.appendChild(docLink);
     } else {
@@ -122,7 +123,7 @@ function createMessageElement(messageData) {
         textSpan.textContent = messageData.message;
         contentDiv.appendChild(textSpan);
     }
-    
+
     li.appendChild(contentDiv); 
 
     // Time and Status Container
@@ -134,25 +135,25 @@ function createMessageElement(messageData) {
     if (isMyMessage) {
         const statusSpan = document.createElement('span');
         statusSpan.classList.add(`status-${status}`); 
-        
+
         if (status === 'read') {
-            statusSpan.innerHTML = '✓✓'; // Double checkmark
+            statusSpan.innerHTML = '\u2713\u2713'; // Double checkmark
         } else {
-            statusSpan.innerHTML = '✓';  // Single checkmark (Default for sent)
+            statusSpan.innerHTML = '\u2713';  // Single checkmark (Default for sent)
         }
 
         timeSpan.appendChild(statusSpan);
     }
 
     li.appendChild(timeSpan);
-    
+
     return li;
 }
 
 function renderMessage(messageData) {
     messages.appendChild(createMessageElement(messageData));
     scrollToBottom();
-    
+
     // CRITICAL: Trigger read receipt for incoming messages immediately after rendering
     triggerReadReceipt(messageData); 
 }
@@ -175,22 +176,21 @@ socket.on('history', (messagesHistory) => {
 socket.on('message status update', (data) => {
     if (data.status === 'read') {
         const listItem = document.querySelector(`li[data-id="${data.messageID}"]`);
-        
+
         if (listItem) {
             const statusSpan = listItem.querySelector('.message-time span');
-            
+
             if (statusSpan && statusSpan.classList.contains('status-sent')) {
                 statusSpan.classList.remove('status-sent');
                 statusSpan.classList.add('status-read');
-                statusSpan.innerHTML = '✓✓'; // Change single to double checkmark
+                statusSpan.innerHTML = '\u2713\u2713'; // Change single to double checkmark
             }
         }
     }
 });
 
 
- 
-
+   
 
 
 
@@ -206,7 +206,7 @@ form.addEventListener('submit', (e) => {
             status: 'sent', // Explicitly set status to sent
             timestamp: new Date().toISOString()
         };
-        
+
         socket.emit('chat message', messageData);
         input.value = '';
     }
@@ -215,7 +215,7 @@ form.addEventListener('submit', (e) => {
 // --- User Selection Functionality ---
 function setupUserSelection() {
     const userButtons = document.querySelectorAll('.user-buttons button');
-    
+
     userButtons.forEach(button => {
         button.addEventListener('click', () => {
             const selectedUser = button.getAttribute('data-user');
@@ -226,7 +226,7 @@ function setupUserSelection() {
 
 function selectUser(userId) {
     currentUser = userId;
-    
+
     // Tell the server which user we are
     socket.emit('select user', userId);
 }
@@ -236,15 +236,20 @@ socket.on('user selected', (success) => {
         selectionScreen.style.display = 'none';
         chatContainer.style.display = 'flex';
         currentUserDisplay.textContent = currentUser;
-        input.focus();
         
+        // Set the other user's name
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        otherUserName.textContent = otherUser.toUpperCase();
+        
+        input.focus();
+
         // Render pending history now that we know who the current user is
         if (pendingHistory && pendingHistory.length > 0) {
             console.log('Rendering pending history for user:', currentUser);
             pendingHistory.forEach(renderMessage);
             pendingHistory = null; // Clear pending history
         }
-        
+
         // Request latest presence data
         socket.emit('get presence update');
     } else {
@@ -259,7 +264,7 @@ function updateOtherUserStatus() {
 
 socket.on('available users', (inUseList) => {
     console.log('Available users:', inUseList);
-    
+
     // Enable/disable buttons based on availability
     const userButtons = document.querySelectorAll('.user-buttons button');
     userButtons.forEach(button => {
@@ -268,32 +273,34 @@ socket.on('available users', (inUseList) => {
     });
 });
 
-// --- Presence Update Handler ---
+// --- Enhanced Presence Update Handler ---
 socket.on('presence update', (presenceData) => {
     console.log('Presence update received:', presenceData);
-    
+
     if (currentUser) {
         const otherUser = currentUser === 'i' ? 'x' : 'i';
         const otherUserStatus = document.getElementById('other-user-status');
         const otherPresence = presenceData[otherUser];
-        
+
         if (otherPresence) {
             if (otherPresence.isOnline) {
                 otherUserStatus.textContent = 'Online';
                 otherUserStatus.className = 'status-online';
             } else {
-                otherUserStatus.textContent = otherPresence.timeAgo || 'Offline';
+                // Show detailed time ago information
+                const timeAgo = otherPresence.timeAgo || 'Offline';
+                otherUserStatus.textContent = `last seen ${timeAgo}`;
                 otherUserStatus.className = 'status-offline';
             }
         }
     }
-    
+
     // Update user selection buttons status
     const userButtons = document.querySelectorAll('.user-buttons button');
     userButtons.forEach(button => {
         const userId = button.getAttribute('data-user');
         const userPresence = presenceData[userId];
-        
+
         if (userPresence && !userPresence.isOnline && userPresence.timeAgo) {
             // Update button text to show last seen time
             if (userId !== currentUser) {
