@@ -55,29 +55,42 @@
     </div>
     
     <script src="/socket.io/socket.io.js"></script>
-    <script src="client.js"></script>
+    <script src="client_simple.js"></script>
     
     <style>
-    /* Additional fixes for message actions */
-    .message-actions {
-        background: rgba(0, 0, 0, 0.8) !important;
-        border-radius: 50% !important;
-        width: 28px !important;
-        height: 28px !important;
-        top: -5px !important;
-        right: -8px !important;
+    /* Simple Delete Button Styles */
+    .delete-btn {
+        position: absolute;
+        top: -5px;
+        right: -8px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        z-index: 15;
+        background: rgba(255, 107, 107, 0.9);
+        border: none;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
     }
-    
-    .message-actions-btn {
-        background: transparent !important;
-        border-radius: 50% !important;
-        font-size: 14px !important;
+
+    .message-bubble:hover .delete-btn {
+        opacity: 1;
     }
-    
-    .message-actions-menu {
-        position: fixed !important;
-        border: 1px solid #384e5a !important;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4) !important;
+
+    .delete-btn:hover {
+        background: rgba(255, 107, 107, 1);
+    }
+
+    .deleted-message {
+        color: #8696a0;
+        font-style: italic;
     }
     </style>
 </body>
