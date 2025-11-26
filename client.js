@@ -522,12 +522,7 @@ function toggleMessageActions(messageId) {
         menu.appendChild(deleteItem);
     }
     
-    // Forward
-    const forwardItem = createActionItem('⤴️ Forward', () => {
-        forwardMessage(messageData);
-        closeMessageActions();
-    });
-    menu.appendChild(forwardItem);
+    // Forward option removed as requested
     
     // Download (for media files)
     if (messageData.type === 'image' || messageData.type === 'video' || messageData.type === 'document') {
@@ -804,6 +799,69 @@ function showNotification(message) {
     setTimeout(() => {
         notification.remove();
     }, 3000);
+}
+
+function enableEditForMessage(messageData) {
+    const messageElement = document.querySelector(`[data-message-id="${messageData._id}"]`);
+    const contentDiv = messageElement.querySelector('.message-content');
+    
+    const editContainer = document.createElement('div');
+    editContainer.className = 'message-edit-mode';
+    editContainer.style.cssText = 'background: rgba(0, 168, 132, 0.1); border: 1px solid #00a884; border-radius: 8px; padding: 4px 8px;';
+    
+    const editInput = document.createElement('textarea');
+    editInput.className = 'message-edit-input';
+    editInput.style.cssText = 'background: transparent; border: none; color: #e9edef; font-family: inherit; font-size: inherit; outline: none; width: 100%; resize: none; min-height: 20px;';
+    editInput.value = messageData.message;
+    editInput.rows = 2;
+    
+    const editActions = document.createElement('div');
+    editActions.className = 'edit-actions';
+    editActions.style.cssText = 'display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end;';
+    
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'edit-btn';
+    saveBtn.style.cssText = 'background: #00a884; border: none; border-radius: 4px; padding: 4px 12px; color: white; cursor: pointer; font-size: 12px;';
+    saveBtn.textContent = 'Save';
+    saveBtn.onclick = () => {
+        const newText = editInput.value.trim();
+        if (newText) {
+            messageData.message = newText;
+            messageData.edited = true;
+            
+            const textSpan = messageElement.querySelector('.message-text');
+            textSpan.textContent = newText;
+            
+            const timeSpan = messageElement.querySelector('.message-time');
+            timeSpan.textContent = `edited ${getCurrentTime()}`;
+            
+            editContainer.remove();
+            contentDiv.style.display = 'block';
+            
+            showNotification('Message edited successfully ✓');
+        }
+    };
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'edit-btn cancel';
+    cancelBtn.style.cssText = 'background: #8696a0; border: none; border-radius: 4px; padding: 4px 12px; color: white; cursor: pointer; font-size: 12px;';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = () => {
+        editContainer.remove();
+        contentDiv.style.display = 'block';
+    };
+    
+    editActions.appendChild(cancelBtn);
+    editActions.appendChild(saveBtn);
+    
+    editContainer.appendChild(editInput);
+    editContainer.appendChild(editActions);
+    
+    contentDiv.style.display = 'none';
+    contentDiv.parentNode.insertBefore(editContainer, contentDiv.nextSibling);
+    
+    editInput.focus();
+    editInput.setSelectionRange(editInput.value.length, editInput.value.length);
 }
 
 // --- Enhanced Form Submission ---
