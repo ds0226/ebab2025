@@ -145,10 +145,11 @@ body {
 }
 
 .message-text, .message-content a {
-    font-size: 0.62em;
+    font-size: 0.68em;
     padding-right: 40px;
     font-weight: 300;
     white-space: pre-wrap;
+    color: rgba(233, 237, 239, 0.85);
 }
 
 /* Styles for embedded media */
