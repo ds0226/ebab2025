@@ -23,12 +23,12 @@ body {
 
 .user-buttons button {
     margin: 10px;
-    padding: 15px 30px;
+    padding: 10px 20px;
     border: none;
     border-radius: 8px;
     background-color: #2a3942;
     color: #e9edef;
-    font-size: 1.1em;
+    font-size: 0.95em;
     cursor: pointer;
     transition: background-color 0.2s;
 }
@@ -57,7 +57,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px 20px;
+    padding: 10px 16px;
     background-color: #202c33;
     color: #e9edef;
     position: fixed;
@@ -82,33 +82,33 @@ body {
 .user-id {
     font-weight: bold;
     color: #00a884;
-    font-size: 1.1em;
+    font-size: 0.95em;
 }
 
 .other-user-label {
     font-weight: 600;
     color: #e9edef;
-    font-size: 1.0em;
+    font-size: 0.9em;
 }
 
 .status-online {
     color: #00a884;
     font-weight: normal;
-    font-size: 0.9em;
+    font-size: 0.8em;
 }
 
 .status-offline, .status-recently-online {
     color: #8696a0;
     font-weight: normal;
-    font-size: 0.9em;
+    font-size: 0.8em;
 }
 
 /* --- Messages Container --- */
 #messages {
     list-style-type: none;
-    /* Adjust margins to make space for fixed header (80px) and fixed form (80px) */
-    margin: 80px 0 80px 0; 
-    padding: 20px;
+    /* Adjust margins to make space for fixed header and form */
+    margin: 70px 0 70px 0; 
+    padding: 16px;
     overflow-y: auto;
     width: 100%;
     box-sizing: border-box;
@@ -124,9 +124,9 @@ body {
     flex-direction: column;
     width: fit-content; /* NEW: Size to content exactly */
     max-width: 65%;
-    margin-bottom: 12px;
-    padding: 8px 10px;
-    border-radius: 10px;
+    margin-bottom: 10px;
+    padding: 6px 8px;
+    border-radius: 8px;
     position: relative;
     word-wrap: break-word;
     box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
@@ -145,8 +145,8 @@ body {
 }
 
 .message-text, .message-content a {
-    font-size: 0.75em;
-    padding-right: 25px; /* Space for time/status */
+    font-size: 0.62em;
+    padding-right: 22px; /* Space for time/status */
 }
 
 /* Styles for embedded media */
@@ -166,14 +166,14 @@ body {
 
 /* --- Timestamp and Status --- */
 .message-time {
-    font-size: 0.7em;
+    font-size: 0.58em;
     color: rgba(255, 255, 255, 0.6);
     align-self: flex-end;
-    margin-top: 3px;
+    margin-top: 2px;
     white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
 }
 
 .status-sent, .status-read {
@@ -185,7 +185,7 @@ body {
 #form {
     display: flex;
     align-items: flex-end; 
-    padding: 8px 10px;
+    padding: 6px 8px;
     background-color: #1f2c33;
     position: fixed;
     bottom: 0;
@@ -196,26 +196,26 @@ body {
 
 #input {
     flex-grow: 1;
-    min-height: 40px;
-    max-height: 120px;
-    padding: 10px 15px;
-    margin: 0 8px;
+    min-height: 34px;
+    max-height: 100px;
+    padding: 8px 12px;
+    margin: 0 6px;
     border: none;
-    border-radius: 20px;
+    border-radius: 18px;
     background-color: #2a3942;
     color: #e9edef;
     resize: none;
     overflow-y: auto;
-    font-size: 1em;
+    font-size: 0.95em;
     box-sizing: border-box;
 }
 
 #form button {
     flex-shrink: 0;
-    width: 44px;
-    height: 44px;
+    width: 30px;
+    height: 30px;
     padding: 0;
-    margin: 0 3px;
+    margin: 0 1px;
     border: none;
     border-radius: 50%;
     background: none;
@@ -224,12 +224,12 @@ body {
 }
 
 #send-button {
-    background-color: #00a884;
-    color: white;
+    background-color: transparent;
+    color: #00a884;
 }
 
 #form button svg {
-    width: 24px;
-    height: 24px;
+    width: 16px;
+    height: 16px;
     vertical-align: middle;
 }

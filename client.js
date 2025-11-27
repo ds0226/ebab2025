@@ -3,6 +3,8 @@
 const socket = io(); // Auto-connect to current host
 let currentUser = null;
 let pendingHistory = null;
+let latestPresenceData = null;
+let presenceTickerId = null;
 
 // --- DOM Elements ---
 const messages = document.getElementById('messages');
@@ -25,6 +27,60 @@ function getCurrentTime() {
 
 function scrollToBottom() {
     messages.scrollTop = messages.scrollHeight;
+}
+
+function getTimeAgo(timestamp) {
+    if (!timestamp) return null;
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now - past;
+    const diffSeconds = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffSeconds < 30) return 'just now';
+    if (diffSeconds < 60) return 'less than a minute ago';
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+}
+
+function updatePresenceDisplays() {
+    if (!latestPresenceData) return;
+    if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        const otherPresence = latestPresenceData[otherUser];
+        if (otherPresence) {
+            if (otherPresence.isOnline) {
+                otherUserStatus.textContent = 'Online';
+                otherUserStatus.className = 'status-online';
+            } else {
+                const timeText = getTimeAgo(otherPresence.lastSeen) || 'Offline';
+                otherUserStatus.textContent = `last seen ${timeText}`;
+                otherUserStatus.className = 'status-offline';
+            }
+        }
+    }
+
+    const userButtons = document.querySelectorAll('.user-buttons button');
+    userButtons.forEach(button => {
+        const userId = button.getAttribute('data-user');
+        const userPresence = latestPresenceData[userId];
+        if (userPresence && !userPresence.isOnline) {
+            const originalText = button.getAttribute('data-original-text') || button.textContent;
+            if (!button.getAttribute('data-original-text')) {
+                button.setAttribute('data-original-text', originalText);
+            }
+            const timeAgoText = getTimeAgo(userPresence.lastSeen) || 'offline';
+            if (userId !== currentUser) {
+                button.textContent = `${originalText} (${timeAgoText})`;
+            }
+        }
+        if (userPresence && userPresence.isOnline) {
+            const originalText = button.getAttribute('data-original-text') || button.textContent;
+            button.textContent = originalText;
+        }
+    });
 }
 
 // --- Read Receipt Trigger (NEW) ---
@@ -129,7 +185,11 @@ function createMessageElement(messageData) {
     // Time and Status Container
     const timeSpan = document.createElement('span');
     timeSpan.className = 'message-time';
-    timeSpan.textContent = getCurrentTime(); 
+    const timeTextSpan = document.createElement('span');
+    timeTextSpan.className = 'time-text';
+    const ts = messageData.timestamp || new Date().toISOString();
+    timeTextSpan.textContent = getTimeAgo(ts) || getCurrentTime();
+    timeSpan.appendChild(timeTextSpan);
 
     // --- Status Checkmarks (NEW LOGIC) ---
     if (isMyMessage) {
@@ -146,6 +206,7 @@ function createMessageElement(messageData) {
     }
 
     li.appendChild(timeSpan);
+    li.dataset.timestamp = ts;
 
     return li;
 }
@@ -178,7 +239,7 @@ socket.on('message status update', (data) => {
         const listItem = document.querySelector(`li[data-id="${data.messageID}"]`);
 
         if (listItem) {
-            const statusSpan = listItem.querySelector('.message-time span');
+            const statusSpan = listItem.querySelector('.message-time .status-sent');
 
             if (statusSpan && statusSpan.classList.contains('status-sent')) {
                 statusSpan.classList.remove('status-sent');
@@ -209,6 +270,15 @@ form.addEventListener('submit', (e) => {
 
         socket.emit('chat message', messageData);
         input.value = '';
+    }
+});
+
+input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (input.value.trim()) {
+            form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
     }
 });
 
@@ -276,42 +346,14 @@ socket.on('available users', (inUseList) => {
 // --- Enhanced Presence Update Handler ---
 socket.on('presence update', (presenceData) => {
     console.log('Presence update received:', presenceData);
-
-    if (currentUser) {
-        const otherUser = currentUser === 'i' ? 'x' : 'i';
-        const otherUserStatus = document.getElementById('other-user-status');
-        const otherPresence = presenceData[otherUser];
-
-        if (otherPresence) {
-            if (otherPresence.isOnline) {
-                otherUserStatus.textContent = 'Online';
-                otherUserStatus.className = 'status-online';
-            } else {
-                // Show detailed time ago information
-                const timeAgo = otherPresence.timeAgo || 'Offline';
-                otherUserStatus.textContent = `last seen ${timeAgo}`;
-                otherUserStatus.className = 'status-offline';
-            }
-        }
+    latestPresenceData = presenceData;
+    updatePresenceDisplays();
+    if (!presenceTickerId) {
+        presenceTickerId = setInterval(() => {
+            updatePresenceDisplays();
+            updateMessageTimestamps();
+        }, 60000);
     }
-
-    // Update user selection buttons status
-    const userButtons = document.querySelectorAll('.user-buttons button');
-    userButtons.forEach(button => {
-        const userId = button.getAttribute('data-user');
-        const userPresence = presenceData[userId];
-
-        if (userPresence && !userPresence.isOnline && userPresence.timeAgo) {
-            // Update button text to show last seen time
-            if (userId !== currentUser) {
-                const originalText = button.getAttribute('data-original-text') || button.textContent;
-                if (!button.getAttribute('data-original-text')) {
-                    button.setAttribute('data-original-text', originalText);
-                }
-                button.textContent = `${originalText} (${userPresence.timeAgo})`;
-            }
-        }
-    });
 });
 
 // Photo button click handler
@@ -321,3 +363,15 @@ photoButton.addEventListener('click', () => {
 
 // Initialize user selection when DOM is ready
 document.addEventListener('DOMContentLoaded', setupUserSelection);
+
+// --- Timestamp Ticker for Message Bubbles ---
+function updateMessageTimestamps() {
+    const items = document.querySelectorAll('li.message-bubble');
+    items.forEach(li => {
+        const ts = li.dataset.timestamp;
+        const timeTextEl = li.querySelector('.message-time .time-text');
+        if (ts && timeTextEl) {
+            timeTextEl.textContent = getTimeAgo(ts) || getCurrentTime();
+        }
+    });
+}
