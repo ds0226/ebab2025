@@ -145,7 +145,7 @@ body {
 }
 
 .message-text, .message-content a {
-    font-size: 0.68em;
+    font-size: 0.72em;
     padding-right: 40px;
     font-weight: 300;
     white-space: pre-wrap;
