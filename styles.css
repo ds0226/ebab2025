@@ -133,7 +133,7 @@ body {
 }
 
 .my-message {
-    background-color: #005c4b; /* Darker green/teal */
+    background-color: #202c33;
     align-self: flex-end;
     margin-left: auto;
 }
@@ -146,7 +146,9 @@ body {
 
 .message-text, .message-content a {
     font-size: 0.62em;
-    padding-right: 22px; /* Space for time/status */
+    padding-right: 40px;
+    font-weight: 300;
+    white-space: pre-wrap;
 }
 
 /* Styles for embedded media */
@@ -166,14 +168,15 @@ body {
 
 /* --- Timestamp and Status --- */
 .message-time {
-    font-size: 0.58em;
-    color: rgba(255, 255, 255, 0.6);
-    align-self: flex-end;
-    margin-top: 2px;
+    font-size: 0.50em;
+    color: rgba(255, 255, 255, 0.45);
+    position: absolute;
+    right: 6px;
+    bottom: 4px;
     white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
 }
 
 .status-sent, .status-read {

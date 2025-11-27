@@ -25,6 +25,11 @@ function getCurrentTime() {
     return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
+function getClockTime(timestamp) {
+    const d = timestamp ? new Date(timestamp) : new Date();
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 function scrollToBottom() {
     messages.scrollTop = messages.scrollHeight;
 }
@@ -188,7 +193,7 @@ function createMessageElement(messageData) {
     const timeTextSpan = document.createElement('span');
     timeTextSpan.className = 'time-text';
     const ts = messageData.timestamp || new Date().toISOString();
-    timeTextSpan.textContent = getTimeAgo(ts) || getCurrentTime();
+    timeTextSpan.textContent = getClockTime(ts);
     timeSpan.appendChild(timeTextSpan);
 
     // --- Status Checkmarks (NEW LOGIC) ---
@@ -274,6 +279,15 @@ form.addEventListener('submit', (e) => {
 });
 
 input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (input.value.trim()) {
+            form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+    }
+});
+
+input.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (input.value.trim()) {
@@ -371,7 +385,7 @@ function updateMessageTimestamps() {
         const ts = li.dataset.timestamp;
         const timeTextEl = li.querySelector('.message-time .time-text');
         if (ts && timeTextEl) {
-            timeTextEl.textContent = getTimeAgo(ts) || getCurrentTime();
+            timeTextEl.textContent = getClockTime(ts);
         }
     });
 }
