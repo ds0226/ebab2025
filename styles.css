@@ -1,8 +1,9 @@
 /* --- Global Styles --- */
 body {
     margin: 0;
-    font-family: Arial, sans-serif;
-    background-color: #0b141a; /* Dark background */
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "San Francisco", "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans", sans-serif;
+    font-size: 14px;
+    background-color: #0b141a;
     color: #e9edef;
     display: flex;
     flex-direction: column;
@@ -82,25 +83,25 @@ body {
 .user-id {
     font-weight: bold;
     color: #00a884;
-    font-size: 0.95em;
+    font-size: 1rem;
 }
 
 .other-user-label {
     font-weight: 600;
     color: #e9edef;
-    font-size: 0.9em;
+    font-size: 1.15rem;
 }
 
 .status-online {
     color: #00a884;
     font-weight: normal;
-    font-size: 0.8em;
+    font-size: 0.95rem;
 }
 
 .status-offline, .status-recently-online {
     color: #8696a0;
     font-weight: normal;
-    font-size: 0.8em;
+    font-size: 0.95rem;
 }
 
 /* --- Messages Container --- */
@@ -145,7 +146,7 @@ body {
 }
 
 .message-text, .message-content a {
-    font-size: 0.72em;
+    font-size: 1rem;
     padding-right: 40px;
     font-weight: 300;
     white-space: pre-wrap;
@@ -169,7 +170,7 @@ body {
 
 /* --- Timestamp and Status --- */
 .message-time {
-    font-size: 0.50em;
+    font-size: 0.85rem;
     color: rgba(255, 255, 255, 0.45);
     position: absolute;
     right: 6px;
@@ -210,7 +211,7 @@ body {
     color: #e9edef;
     resize: none;
     overflow-y: auto;
-    font-size: 0.95em;
+    font-size: 1rem;
     box-sizing: border-box;
 }
 
