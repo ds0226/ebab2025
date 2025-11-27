@@ -146,8 +146,8 @@ body {
 }
 
 .message-text, .message-content a {
-    font-size: 0.9rem;
-    line-height: 1.35;
+    font-size: 0.70rem;
+    line-height: 1.15;
     padding-right: 56px;
     font-weight: 300;
     white-space: pre-wrap;
