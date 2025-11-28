@@ -60,12 +60,12 @@ const activeUsers = {
 const userPresence = {
     'i': { 
         isOnline: false, 
-        lastSeen: null,
+        lastSeen: new Date().toISOString(),
         socketId: null 
     },
     'x': { 
         isOnline: false, 
-        lastSeen: null,
+        lastSeen: new Date().toISOString(),
         socketId: null 
     }
 };
