@@ -262,6 +262,7 @@ function createMessageElement(messageData) {
     }
 
     li.appendChild(timeSpan);
+    
     li.dataset.timestamp = ts;
 
     return li;
@@ -270,9 +271,12 @@ function createMessageElement(messageData) {
 function renderMessage(messageData) {
     messages.appendChild(createMessageElement(messageData));
     scrollToBottom();
-
-    // CRITICAL: Trigger read receipt for incoming messages immediately after rendering
-    triggerReadReceipt(messageData); 
+    const senderKey = messageData.senderID || messageData.sender;
+    const isIncoming = senderKey !== currentUser;
+    if (isIncoming && messageData._id && messageData.status !== 'read') {
+        const li = messages.querySelector(`li[data-id="${messageData._id}"]`);
+        if (li) observeForRead(li, messageData);
+    }
 }
 
 // --- Socket.IO Event Listeners ---
@@ -327,12 +331,8 @@ socket.on('message status update', (data) => {
 
         if (listItem) {
             const statusSpan = listItem.querySelector('.message-time .status-sent, .message-time .status-delivered');
-
-            if (statusSpan && statusSpan.classList.contains('status-sent')) {
+            if (statusSpan) {
                 statusSpan.classList.remove('status-sent');
-                statusSpan.classList.add('status-read');
-                statusSpan.innerHTML = '\u2713\u2713'; // Change single to double checkmark
-            } else if (statusSpan && statusSpan.classList.contains('status-delivered')) {
                 statusSpan.classList.remove('status-delivered');
                 statusSpan.classList.add('status-read');
                 statusSpan.innerHTML = '\u2713\u2713';
@@ -520,6 +520,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 15000);
     }
 });
+
+function observeForRead(li, messageData) {
+    const id = messageData._id;
+    if (!id) return;
+    if (li.dataset.readObserved === '1') return;
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                socket.emit('message read', { readerID: currentUser, messageID: id });
+                io.disconnect();
+                li.dataset.readObserved = '1';
+            }
+        });
+    }, { threshold: 0.6 });
+    io.observe(li);
+}
 
 // --- Timestamp Ticker for Message Bubbles ---
 function updateMessageTimestamps() {
