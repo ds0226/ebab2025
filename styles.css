@@ -182,8 +182,18 @@ body {
     gap: 3px;
 }
 
-.status-sent, .status-read {
-    color: #53bdeb; /* Blue checkmarks */
+.status-sent {
+    color: #8696a0;
+    font-weight: normal;
+}
+
+.status-delivered {
+    color: #8696a0;
+    font-weight: normal;
+}
+
+.status-read {
+    color: #00a884;
     font-weight: normal;
 }
 

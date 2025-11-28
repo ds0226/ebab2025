@@ -289,6 +289,13 @@ socket.on('chat message', (msg) => {
             otherUserStatus.className = 'status-online';
             clearStoredOfflineStart(otherUser);
             delete localOfflineStart[otherUser];
+            // Receiver acknowledges delivery once bubble is rendered
+            if (msg._id) {
+                socket.emit('message delivered', {
+                    messageID: msg._id,
+                    senderID: msg.senderID || msg.sender
+                });
+            }
         }
     }
 });
@@ -303,6 +310,13 @@ socket.on('history', (messagesHistory) => {
         if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
             renderMessage(msg);
         }
+        const isIncoming = (msg.senderID || msg.sender) !== currentUser;
+        if (isIncoming && msg.status === 'sent' && msg._id) {
+            socket.emit('message delivered', {
+                messageID: msg._id,
+                senderID: msg.senderID || msg.sender
+            });
+        }
     });
 });
 
@@ -312,13 +326,30 @@ socket.on('message status update', (data) => {
         const listItem = document.querySelector(`li[data-id="${data.messageID}"]`);
 
         if (listItem) {
-            const statusSpan = listItem.querySelector('.message-time .status-sent');
+            const statusSpan = listItem.querySelector('.message-time .status-sent, .message-time .status-delivered');
 
             if (statusSpan && statusSpan.classList.contains('status-sent')) {
                 statusSpan.classList.remove('status-sent');
                 statusSpan.classList.add('status-read');
                 statusSpan.innerHTML = '\u2713\u2713'; // Change single to double checkmark
+            } else if (statusSpan && statusSpan.classList.contains('status-delivered')) {
+                statusSpan.classList.remove('status-delivered');
+                statusSpan.classList.add('status-read');
+                statusSpan.innerHTML = '\u2713\u2713';
             }
+        }
+    }
+});
+
+// Delivered update (receiver online)
+socket.on('message delivered', (data) => {
+    const listItem = document.querySelector(`li[data-id="${data.messageID}"]`);
+    if (listItem) {
+        const statusSpan = listItem.querySelector('.message-time .status-sent');
+        if (statusSpan) {
+            statusSpan.classList.remove('status-sent');
+            statusSpan.classList.add('status-delivered');
+            statusSpan.innerHTML = '\u2713\u2713'; // Double grey checks
         }
     }
 });
