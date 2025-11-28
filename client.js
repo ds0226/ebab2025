@@ -5,6 +5,7 @@ let currentUser = null;
 let pendingHistory = null;
 let latestPresenceData = null;
 let presenceTickerId = null;
+let localOfflineStart = {};
 
 // --- DOM Elements ---
 const messages = document.getElementById('messages');
@@ -50,6 +51,26 @@ function getTimeAgo(timestamp) {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
 }
 
+function getOfflineDuration(timestamp) {
+    if (!timestamp) return null;
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now - past;
+    const mins = Math.floor(diffMs / 60000);
+    const hours = Math.floor(diffMs / 3600000);
+    const days = Math.floor(diffMs / 86400000);
+    if (mins < 1) return '<1m';
+    if (days >= 1) {
+        const remHours = hours % 24;
+        return remHours ? `${days}d ${remHours}h` : `${days}d`;
+    }
+    if (hours >= 1) {
+        const remMins = mins % 60;
+        return remMins ? `${hours}h ${remMins}m` : `${hours}h`;
+    }
+    return `${mins}m`;
+}
+
 function updatePresenceDisplays() {
     if (!latestPresenceData) return;
     if (currentUser) {
@@ -60,8 +81,12 @@ function updatePresenceDisplays() {
                 otherUserStatus.textContent = 'Online';
                 otherUserStatus.className = 'status-online';
             } else {
-                const timeText = getTimeAgo(otherPresence.lastSeen) || 'Offline';
-                otherUserStatus.textContent = `last seen ${timeText}`;
+                if (!otherPresence.lastSeen && !localOfflineStart[otherUser]) {
+                    localOfflineStart[otherUser] = new Date().toISOString();
+                }
+                const fallbackTs = otherPresence.lastSeen || localOfflineStart[otherUser];
+                const durationText = getOfflineDuration(fallbackTs) || 'unknown';
+                otherUserStatus.textContent = `Offline ${durationText}`;
                 otherUserStatus.className = 'status-offline';
             }
         }
@@ -76,9 +101,13 @@ function updatePresenceDisplays() {
             if (!button.getAttribute('data-original-text')) {
                 button.setAttribute('data-original-text', originalText);
             }
-            const timeAgoText = getTimeAgo(userPresence.lastSeen) || 'offline';
+            if (!userPresence.lastSeen && !localOfflineStart[userId]) {
+                localOfflineStart[userId] = new Date().toISOString();
+            }
+            const fallbackTsBtn = userPresence.lastSeen || localOfflineStart[userId];
+            const durationTextBtn = getOfflineDuration(fallbackTsBtn) || 'unknown';
             if (userId !== currentUser) {
-                button.textContent = `${originalText} (${timeAgoText})`;
+                button.textContent = `${originalText} (offline ${durationTextBtn})`;
             }
         }
         if (userPresence && userPresence.isOnline) {
@@ -233,9 +262,16 @@ socket.on('chat message', (msg) => {
 });
 
 socket.on('history', (messagesHistory) => {
-    // Store history but don't render until user is selected
-    pendingHistory = messagesHistory;
-    console.log('History received but pending user selection:', messagesHistory.length, 'messages');
+    if (!currentUser) {
+        pendingHistory = messagesHistory;
+        console.log('History received but pending user selection:', messagesHistory.length, 'messages');
+        return;
+    }
+    messagesHistory.forEach(msg => {
+        if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
+            renderMessage(msg);
+        }
+    });
 });
 
 // --- Real-time Status Update Listener (NEW) ---
@@ -361,12 +397,22 @@ socket.on('available users', (inUseList) => {
 socket.on('presence update', (presenceData) => {
     console.log('Presence update received:', presenceData);
     latestPresenceData = presenceData;
+    for (const uid in presenceData) {
+        const p = presenceData[uid];
+        if (!p.isOnline && !p.lastSeen) {
+            if (!localOfflineStart[uid]) localOfflineStart[uid] = new Date().toISOString();
+        } else {
+            if (localOfflineStart[uid]) delete localOfflineStart[uid];
+        }
+    }
     updatePresenceDisplays();
     if (!presenceTickerId) {
         presenceTickerId = setInterval(() => {
             updatePresenceDisplays();
             updateMessageTimestamps();
-        }, 60000);
+            socket.emit('get presence update');
+            socket.emit('get history');
+        }, 15000);
     }
 });
 
@@ -376,7 +422,17 @@ photoButton.addEventListener('click', () => {
 });
 
 // Initialize user selection when DOM is ready
-document.addEventListener('DOMContentLoaded', setupUserSelection);
+document.addEventListener('DOMContentLoaded', () => {
+    setupUserSelection();
+    if (!presenceTickerId) {
+        presenceTickerId = setInterval(() => {
+            updatePresenceDisplays();
+            updateMessageTimestamps();
+            socket.emit('get presence update');
+            socket.emit('get history');
+        }, 15000);
+    }
+});
 
 // --- Timestamp Ticker for Message Bubbles ---
 function updateMessageTimestamps() {

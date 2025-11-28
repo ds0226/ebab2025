@@ -217,6 +217,16 @@ function startServerLogic() {
             }
             socket.emit('presence update', presenceData);
         });
+
+        // --- Get History (for periodic refresh) ---
+        socket.on('get history', async () => {
+            try {
+                const messagesHistory = await messagesCollection.find({}).toArray();
+                socket.emit('history', messagesHistory);
+            } catch (e) {
+                console.error('Error fetching history (get history):', e);
+            }
+        });
         
         // --- Chat Message Event ---
         socket.on('chat message', async (msg) => {

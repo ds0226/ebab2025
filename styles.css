@@ -58,7 +58,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 16px;
+    padding: 6px 12px;
     background-color: #202c33;
     color: #e9edef;
     position: fixed;
@@ -108,7 +108,7 @@ body {
 #messages {
     list-style-type: none;
     /* Adjust margins to make space for fixed header and form */
-    margin: 70px 0 70px 0; 
+    margin: 56px 0 70px 0; 
     padding: 16px;
     overflow-y: auto;
     width: 100%;
