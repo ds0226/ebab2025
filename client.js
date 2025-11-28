@@ -531,6 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 15000);
     }
     startRefreshWatchdog();
+    startAutoRefresh();
 });
 
 function startRefreshWatchdog() {
@@ -544,6 +545,14 @@ function startRefreshWatchdog() {
             location.reload();
         }
     }, 30000);
+}
+
+function startAutoRefresh() {
+    setInterval(() => {
+        const isTyping = document.activeElement === input && input.value.trim().length > 0;
+        if (isTyping) return;
+        location.reload();
+    }, 60000);
 }
 
 function observeForRead(li, messageData) {
