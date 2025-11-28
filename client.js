@@ -6,6 +6,27 @@ let pendingHistory = null;
 let latestPresenceData = null;
 let presenceTickerId = null;
 let localOfflineStart = {};
+const OFFLINE_KEY_PREFIX = 'offlineStart_';
+
+function getStoredOfflineStart(uid) {
+    try {
+        return localStorage.getItem(OFFLINE_KEY_PREFIX + uid);
+    } catch (_) {
+        return null;
+    }
+}
+
+function setStoredOfflineStart(uid, ts) {
+    try {
+        localStorage.setItem(OFFLINE_KEY_PREFIX + uid, ts);
+    } catch (_) {}
+}
+
+function clearStoredOfflineStart(uid) {
+    try {
+        localStorage.removeItem(OFFLINE_KEY_PREFIX + uid);
+    } catch (_) {}
+}
 
 // --- DOM Elements ---
 const messages = document.getElementById('messages');
@@ -399,10 +420,14 @@ socket.on('presence update', (presenceData) => {
     latestPresenceData = presenceData;
     for (const uid in presenceData) {
         const p = presenceData[uid];
-        if (!p.isOnline && !p.lastSeen) {
-            if (!localOfflineStart[uid]) localOfflineStart[uid] = new Date().toISOString();
+        if (p.isOnline) {
+            delete localOfflineStart[uid];
+            clearStoredOfflineStart(uid);
         } else {
-            if (localOfflineStart[uid]) delete localOfflineStart[uid];
+            const stored = getStoredOfflineStart(uid);
+            const ts = p.lastSeen || localOfflineStart[uid] || stored || new Date().toISOString();
+            localOfflineStart[uid] = ts;
+            setStoredOfflineStart(uid, ts);
         }
     }
     updatePresenceDisplays();
@@ -423,6 +448,10 @@ photoButton.addEventListener('click', () => {
 
 // Initialize user selection when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+    ['i','x'].forEach(uid => {
+        const stored = getStoredOfflineStart(uid);
+        if (stored) localOfflineStart[uid] = stored;
+    });
     setupUserSelection();
     if (!presenceTickerId) {
         presenceTickerId = setInterval(() => {
