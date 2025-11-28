@@ -7,6 +7,7 @@ let latestPresenceData = null;
 let presenceTickerId = null;
 let localOfflineStart = {};
 const OFFLINE_KEY_PREFIX = 'offlineStart_';
+const SELECTED_USER_KEY = 'selectedUser';
 
 function getStoredOfflineStart(uid) {
     try {
@@ -381,6 +382,7 @@ socket.on('user selected', (success) => {
         // Set the other user's name
         const otherUser = currentUser === 'i' ? 'x' : 'i';
         otherUserName.textContent = otherUser.toUpperCase();
+        setStoredSelectedUser(currentUser);
         
         input.focus();
 
@@ -395,6 +397,9 @@ socket.on('user selected', (success) => {
         socket.emit('get presence update');
     } else {
         alert('This user is already taken. Please select the other user.');
+        clearStoredSelectedUser();
+        selectionScreen.style.display = 'flex';
+        chatContainer.style.display = 'none';
     }
 });
 
@@ -453,6 +458,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (stored) localOfflineStart[uid] = stored;
     });
     setupUserSelection();
+    const storedUser = getStoredSelectedUser();
+    if (storedUser) {
+        currentUser = storedUser;
+        selectionScreen.style.display = 'none';
+        chatContainer.style.display = 'flex';
+        currentUserDisplay.textContent = currentUser;
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        otherUserName.textContent = otherUser.toUpperCase();
+        socket.emit('select user', currentUser);
+        socket.emit('get presence update');
+        socket.emit('get history');
+    }
     if (!presenceTickerId) {
         presenceTickerId = setInterval(() => {
             updatePresenceDisplays();
@@ -473,4 +490,17 @@ function updateMessageTimestamps() {
             timeTextEl.textContent = getClockTime(ts);
         }
     });
+}
+function getStoredSelectedUser() {
+    try {
+        return localStorage.getItem(SELECTED_USER_KEY);
+    } catch (_) { return null; }
+}
+
+function setStoredSelectedUser(uid) {
+    try { localStorage.setItem(SELECTED_USER_KEY, uid); } catch (_) {}
+}
+
+function clearStoredSelectedUser() {
+    try { localStorage.removeItem(SELECTED_USER_KEY); } catch (_) {}
 }
