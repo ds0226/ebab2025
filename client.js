@@ -262,6 +262,8 @@ function createMessageElement(messageData) {
 
         if (status === 'read') {
             statusSpan.innerHTML = '\u2713\u2713'; // Double checkmark
+        } else if (status === 'delivered') {
+            statusSpan.innerHTML = '\u2713\u2713'; // Double grey checks for delivered
         } else {
             statusSpan.innerHTML = '\u2713';  // Single checkmark (Default for sent)
         }
