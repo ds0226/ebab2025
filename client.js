@@ -1,6 +1,13 @@
 // client.js - Handles all client-side logic, including file upload and real-time read receipts.
 
-const socket = io(); // Auto-connect to current host
+const socket = io({
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+    transports: ["websocket", "polling"]
+}); // Auto-connect with robust reconnection
 let currentUser = null;
 let pendingHistory = null;
 let latestPresenceData = null;
@@ -8,6 +15,7 @@ let presenceTickerId = null;
 let localOfflineStart = {};
 const OFFLINE_KEY_PREFIX = 'offlineStart_';
 const SELECTED_USER_KEY = 'selectedUser';
+let lastActivityTs = Date.now();
 
 function getStoredOfflineStart(uid) {
     try {
@@ -285,6 +293,7 @@ socket.on('chat message', (msg) => {
     if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
         renderMessage(msg);
     }
+    lastActivityTs = Date.now();
     // Immediate presence reflection for other user activity
     if (currentUser) {
         const otherUser = currentUser === 'i' ? 'x' : 'i';
@@ -310,6 +319,7 @@ socket.on('history', (messagesHistory) => {
         console.log('History received but pending user selection:', messagesHistory.length, 'messages');
         return;
     }
+    lastActivityTs = Date.now();
     messagesHistory.forEach(msg => {
         if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
             renderMessage(msg);
@@ -477,6 +487,7 @@ socket.on('presence update', (presenceData) => {
         }
     }
     updatePresenceDisplays();
+    lastActivityTs = Date.now();
     if (!presenceTickerId) {
         presenceTickerId = setInterval(() => {
             updatePresenceDisplays();
@@ -519,7 +530,21 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('get history');
         }, 15000);
     }
+    startRefreshWatchdog();
 });
+
+function startRefreshWatchdog() {
+    setInterval(() => {
+        const disconnected = socket.disconnected;
+        const stale = Date.now() - lastActivityTs > 120000; // >2 minutes without activity
+        if (disconnected) {
+            try { socket.connect(); } catch (_) {}
+        }
+        if (stale) {
+            location.reload();
+        }
+    }, 30000);
+}
 
 function observeForRead(li, messageData) {
     const id = messageData._id;
