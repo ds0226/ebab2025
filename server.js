@@ -243,6 +243,15 @@ function startServerLogic() {
             }
             
             io.emit('chat message', msg); 
+
+            // Robust presence update: mark sender online with latest activity
+            const sid = msg.senderID || msg.sender;
+            if (sid && userPresence[sid]) {
+                userPresence[sid].isOnline = true;
+                userPresence[sid].lastSeen = new Date().toISOString();
+                userPresence[sid].socketId = socket.id;
+                broadcastPresenceUpdate();
+            }
         });
 
         // --- Read Receipt Event (NEW) ---

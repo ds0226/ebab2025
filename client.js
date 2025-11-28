@@ -281,6 +281,16 @@ socket.on('chat message', (msg) => {
     if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
         renderMessage(msg);
     }
+    // Immediate presence reflection for other user activity
+    if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        if ((msg.senderID || msg.sender) === otherUser) {
+            otherUserStatus.textContent = 'Online';
+            otherUserStatus.className = 'status-online';
+            clearStoredOfflineStart(otherUser);
+            delete localOfflineStart[otherUser];
+        }
+    }
 });
 
 socket.on('history', (messagesHistory) => {
