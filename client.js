@@ -531,7 +531,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 15000);
     }
     startRefreshWatchdog();
-    startAutoRefresh();
 });
 
 function startRefreshWatchdog() {
@@ -542,17 +541,12 @@ function startRefreshWatchdog() {
             try { socket.connect(); } catch (_) {}
         }
         if (stale) {
-            location.reload();
+            socket.emit('get presence update');
+            socket.emit('get history');
+            updatePresenceDisplays();
+            updateMessageTimestamps();
         }
     }, 30000);
-}
-
-function startAutoRefresh() {
-    setInterval(() => {
-        const isTyping = document.activeElement === input && input.value.trim().length > 0;
-        if (isTyping) return;
-        location.reload();
-    }, 60000);
 }
 
 function observeForRead(li, messageData) {
