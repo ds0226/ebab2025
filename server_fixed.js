@@ -48,6 +48,7 @@ if (!uri) {
 
 const dbName = "chatAppDB"; 
 const collectionName = "messages";
+let client;
 let messagesCollection; 
 
 // --- Global Chat State for User Exclusivity ---
@@ -70,53 +71,23 @@ const userPresence = {
     }
 };
 
-
-// --- MongoDB Connection Logic ---
-async function connectDB() {
-    const client = new MongoClient(uri, {
-        serverApi: {
-            version: ServerApiVersion.v1,
-            strict: true,
-            deprecationErrors: true,
-        }
-    });
-
-    try {
-        await client.connect();
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
-        
-        const db = client.db(dbName);
-        messagesCollection = db.collection(collectionName);
-        
-        startServerLogic(); 
-
-    } catch (e) {
-        console.error("--- MONGODB CONNECTION FAILED ---");
-        console.error("Could not connect to MongoDB. Error details:", e.message);
-        process.exit(1); 
-    }
-}
-
-// --- Helper Functions ---
-function getTimeAgo(timestamp) {
-    if (!timestamp) return null;
-    
+// --- Utility Functions ---
+function getTimeAgo(dateString) {
+    const date = new Date(dateString);
     const now = new Date();
-    const past = new Date(timestamp);
-    const diffMs = now - past;
-       const diffSeconds = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    const diffMs = now - date;
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
     
-    if (diffSeconds < 30) return 'just now';
-    if (diffSeconds < 60) return 'less than a minute ago';
-       if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    if (diffSecs < 60) return 'just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
     if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
 }
 
+// --- FIXED: Memory-Efficient Presence Update Function ---
 function broadcastPresenceUpdate() {
     const presenceData = {};
     
@@ -129,34 +100,15 @@ function broadcastPresenceUpdate() {
     }
     
     io.emit('presence update', presenceData);
-    console.log('Presence update broadcasted:', presenceData);
+    // FIXED: Removed memory-leaking console.log with full object
+    // Only log minimal info for debugging
+    const onlineCount = Object.values(presenceData).filter(u => u.isOnline).length;
+    console.log(`Presence update sent: ${onlineCount} users online`);
 }
 
 // --- Server and Socket.IO Logic ---
 function startServerLogic() {
     app.use(express.static(path.join(__dirname)));
-    app.use('/uploads', express.static('uploads'));
-
-    // HTTP endpoint for file uploads
-    app.post('/upload', upload.single('mediaFile'), (req, res) => {
-        if (!req.file) {
-            return res.status(400).send('No file uploaded.');
-        }
-        const fileURL = '/uploads/' + req.file.filename;
-        const mimeType = req.file.mimetype;
-        let fileType = 'text'; 
-
-        if (mimeType.startsWith('image')) {
-            fileType = 'image';
-        } else if (mimeType.startsWith('video')) {
-            fileType = 'video';
-        } else if (mimeType === 'application/pdf') {
-            fileType = 'document';
-        }
-        
-        res.json({ url: fileURL, type: fileType });
-    });
-
 
     io.on('connection', async (socket) => {
         console.log('A user connected:', socket.id);
@@ -202,14 +154,16 @@ function startServerLogic() {
                 // When a user comes online, mark pending messages to them as delivered
                 // Example: if 'x' came online, mark messages from 'i' with status 'sent' as delivered
                 const otherUserId = userId === 'i' ? 'x' : 'i';
+                
                 (async () => {
                     try {
-                        const pending = await messagesCollection
-                            .find({ status: 'sent', senderID: otherUserId })
-                            .project({ _id: 1 })
-                            .toArray();
-                        if (pending.length > 0) {
-                            const ids = pending.map(doc => doc._id);
+                        const pendingMessages = await messagesCollection.find({
+                            senderID: otherUserId,
+                            status: 'sent'
+                        }).toArray();
+                        
+                        if (pendingMessages.length > 0) {
+                            const ids = pendingMessages.map(msg => msg._id);
                             await messagesCollection.updateMany(
                                 { _id: { $in: ids } },
                                 { $set: { status: 'delivered' } }
@@ -222,7 +176,7 @@ function startServerLogic() {
                             }
                         }
                     } catch (e) {
-                        console.error('Error marking pending messages as delivered on user online:', e);
+                        console.error('Error marking messages as delivered:', e);
                     }
                 })();
             } else {
@@ -259,12 +213,10 @@ function startServerLogic() {
         socket.on('chat message', async (msg) => {
             // Add initial status and save
             msg.status = 'sent';
-            let result;
+            msg.timestamp = new Date().toISOString();
+            
             try {
-                result = await messagesCollection.insertOne(msg);
-                console.log(`Message (Type: ${msg.type}) saved to DB.`);
-                // CRITICAL: Add the MongoDB _id back to the message object before broadcasting
-                msg._id = result.insertedId;
+                await messagesCollection.insertOne(msg);
             } catch (e) {
                 console.error('Error saving message:', e);
             }
@@ -286,14 +238,14 @@ function startServerLogic() {
             if (receiverOnline) {
                 try {
                     await messagesCollection.updateOne(
-                        { _id: result.insertedId },
+                        { _id: msg._id },
                         { $set: { status: 'delivered' } }
                     );
+                    // Notify only the sender connection
+                    socket.emit('message delivered', { messageID: msg._id });
                 } catch (e) {
-                    console.error('Error updating message to delivered:', e);
+                    console.error('Error updating delivered status:', e);
                 }
-                // Notify only the sender connection
-                socket.emit('message delivered', { messageID: msg._id });
             }
         });
 
@@ -302,16 +254,12 @@ function startServerLogic() {
             
             // 1. Update the message status in the database
             try {
-                const updateResult = await messagesCollection.updateOne(
+                await messagesCollection.updateOne(
                     { _id: new ObjectId(data.messageID) },
                     { $set: { status: 'read' } }
                 );
-                
-                if (updateResult.modifiedCount > 0) {
-                    console.log(`Message ${data.messageID} marked as read.`);
-                }
             } catch (e) {
-                console.error('Error updating message status:', e);
+                console.error('Error marking message as read:', e);
                 return;
             }
             
@@ -330,16 +278,15 @@ function startServerLogic() {
                     { $set: { status: 'delivered' } }
                 );
             } catch (e) {
-                console.error('Error setting delivered status:', e);
-                return;
+                console.error('Error marking message as delivered:', e);
             }
+            
             const senderId = data.senderID;
             const senderSocket = activeUsers[senderId];
             if (senderSocket) {
                 io.to(senderSocket).emit('message delivered', { messageID: data.messageID });
             }
         });
-
 
         // --- Disconnect Event ---
         socket.on('disconnect', () => {
@@ -368,7 +315,32 @@ function startServerLogic() {
         
         // Start periodic presence updates (every 30 seconds)
         setInterval(broadcastPresenceUpdate, 30000);
-    });
+    }); 
 } 
+
+// --- Database Connection ---
+async function connectDB() {
+    try {
+        client = new MongoClient(uri, {
+            serverApi: {
+                version: ServerApiVersion.v1,
+                strict: true,
+                deprecationErrors: true,
+            }
+        });
+
+        await client.connect();
+        console.log('Successfully connected to MongoDB!');
+        
+        const db = client.db(dbName);
+        messagesCollection = db.collection(collectionName);
+        
+        startServerLogic();
+
+    } catch (e) {
+        console.error('Failed to connect to MongoDB:', e);
+        process.exit(1); 
+    }
+}
 
 connectDB();

@@ -48,6 +48,16 @@ const otherUserStatus = document.getElementById('other-user-status');
 const otherUserName = document.getElementById('other-user-name');
 const photoInput = document.getElementById('photo-input');
 const photoButton = document.getElementById('photo-button');
+function autosizeInput() {
+    if (!input) return;
+    input.style.height = 'auto';
+    const maxH = 100;
+    const h = Math.min(input.scrollHeight, maxH);
+    input.style.height = h + 'px';
+    if (form && messages) {
+        messages.style.marginBottom = form.offsetHeight + 'px';
+    }
+}
 
 
 // --- Utility Functions ---
@@ -396,6 +406,7 @@ input.addEventListener('keydown', (e) => {
             form.dispatchEvent(new Event('submit', { cancelable: true }));
         }
     }
+    autosizeInput();
 });
 
 input.addEventListener('keypress', (e) => {
@@ -405,6 +416,7 @@ input.addEventListener('keypress', (e) => {
             form.dispatchEvent(new Event('submit', { cancelable: true }));
         }
     }
+    autosizeInput();
 });
 
 // --- User Selection Functionality ---
@@ -533,6 +545,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 15000);
     }
     startRefreshWatchdog();
+    autosizeInput();
+    input.addEventListener('input', autosizeInput);
 });
 
 function startRefreshWatchdog() {
