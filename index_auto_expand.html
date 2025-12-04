@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp-Style Chat | Auto-Expanding Messages</title>
+    <link rel="stylesheet" href="styles_auto_expand.css">
+    <script src="/socket.io/socket.io.js"></script>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Connection Status Indicator -->
+        <div id="connection-status" class="status-disconnected">
+            <span id="status-indicator"></span>
+            <span id="status-text">Connecting...</span>
+        </div>
+
+        <!-- User Selection Screen -->
+        <div id="initial-user-selection">
+            <h1 class="selection-title">Welcome to Chat</h1>
+            <p class="selection-subtitle">Choose your user to start messaging with auto-expanding input</p>
+            <div class="user-buttons">
+                <button class="select-user" data-user="i">User I</button>
+                <button class="select-user" data-user="x">User X</button>
+            </div>
+        </div>
+
+        <!-- Chat Container -->
+        <div id="chat-container">
+            <!-- Chat Header -->
+            <div class="chat-header">
+                <div class="header-info">
+                    <div class="header-avatar" id="other-user-avatar">X</div>
+                    <div class="header-details">
+                        <div class="header-name" id="other-user-name">User X</div>
+                        <div class="user-status" id="other-user-status">
+                            <span class="status-dot offline"></span>
+                            Connecting...
+                        </div>
+                    </div>
+                </div>
+                <div class="my-user-display" id="my-user-id-display">You are User I</div>
+            </div>
+
+            <!-- Messages Area -->
+            <ul id="messages"></ul>
+
+            <!-- Enhanced Message Input Form -->
+            <form id="form" class="form-transition">
+                <div class="input-container">
+                    <textarea 
+                        id="input" 
+                        autocomplete="off" 
+                        autocorrect="off" 
+                        autocapitalize="off" 
+                        spellcheck="false"
+                        placeholder="Type a message..."
+                        rows="1"
+                    ></textarea>
+                    <div class="char-counter" id="char-counter" style="display: none;"></div>
+                </div>
+                <button type="submit" id="send-button">
+                    <span class="send-icon">➤</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="client_auto_expand.js"></script>
+</body>
+</html>
