@@ -72,10 +72,6 @@ function scrollToBottom() {
     }
 }
 
-function forceScrollToBottom() {
-    messages.scrollTop = messages.scrollHeight;
-}
-
 function getTimeAgo(timestamp) {
     if (!timestamp) return null;
     const now = new Date();
@@ -352,11 +348,6 @@ socket.on('history', (messagesHistory) => {
         return;
     }
     lastActivityTs = Date.now();
-    messagesHistory.sort((a, b) => {
-        const ta = new Date(a.timestamp || 0).getTime();
-        const tb = new Date(b.timestamp || 0).getTime();
-        return ta - tb;
-    });
     messagesHistory.forEach(msg => {
         if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
             renderMessage(msg);
@@ -369,7 +360,6 @@ socket.on('history', (messagesHistory) => {
             });
         }
     });
-    forceScrollToBottom();
 });
 
 // --- Real-time Status Update Listener (NEW) ---
@@ -500,7 +490,6 @@ socket.on('user selected', (success) => {
             console.log('Rendering pending history for user:', currentUser);
             pendingHistory.forEach(renderMessage);
             pendingHistory = null; // Clear pending history
-            forceScrollToBottom();
         }
 
         // Request latest presence data
