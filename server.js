@@ -29,11 +29,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        const ok = file.mimetype.startsWith('image') || file.mimetype.startsWith('video') || file.mimetype === 'application/pdf';
-        if (ok) cb(null, true); else cb(new Error('Unsupported file type'), false);
-    }
+    limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 
@@ -203,13 +199,11 @@ function startServerLogic() {
             }
             const fileURL = '/uploads/' + req.file.filename;
             const mimeType = req.file.mimetype;
-            let fileType = 'text';
+            let fileType = 'document';
             if (mimeType.startsWith('image')) {
                 fileType = 'image';
             } else if (mimeType.startsWith('video')) {
                 fileType = 'video';
-            } else if (mimeType === 'application/pdf') {
-                fileType = 'document';
             }
             res.json({ url: fileURL, type: fileType });
         });

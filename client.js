@@ -168,13 +168,15 @@ function triggerReadReceipt(messageData) {
 }
 
 // --- File Upload Logic ---
-photoInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        uploadFile(file);
-    }
-    e.target.value = null; 
-});
+if (photoInput) {
+    photoInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            uploadFile(file);
+        }
+        e.target.value = null;
+    });
+}
 
 async function uploadFile(file) {
     if (!currentUser) return alert('Please select a user first.');
@@ -558,9 +560,11 @@ socket.on('presence update', (presenceData) => {
 });
 
 // Photo button click handler
-photoButton.addEventListener('click', () => {
-    photoInput.click();
-});
+if (photoButton && photoInput) {
+    photoButton.addEventListener('click', () => {
+        photoInput.click();
+    });
+}
 
 // Initialize user selection when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
