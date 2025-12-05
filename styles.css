@@ -206,7 +206,7 @@ body {
 /* --- Input Form (Bottom) --- */
 #form {
     display: flex;
-    align-items: flex-end; 
+    align-items: center; 
     padding: 6px 8px;
     background-color: #1f2c33;
     position: fixed;
@@ -264,4 +264,25 @@ body {
     width: 16px;
     height: 16px;
     vertical-align: middle;
+}
+
+/* Force-hide the native file input (triggered via photo button) */
+#photo-input {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Mobile alignment adjustments */
+@media (max-width: 600px) {
+    #form { padding: 8px; }
+    #input {
+        font-size: 16px; /* Prevent iOS zoom and improve alignment */
+        margin: 0 8px;
+    }
+    #form button { width: 32px; height: 32px; }
+    #form button svg { width: 18px; height: 18px; }
 }
