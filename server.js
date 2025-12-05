@@ -27,7 +27,14 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const ok = file.mimetype.startsWith('image') || file.mimetype.startsWith('video') || file.mimetype === 'application/pdf';
+        if (ok) cb(null, true); else cb(new Error('Unsupported file type'), false);
+    }
+});
 
 
 // --- Socket.IO CORS ---
@@ -40,15 +47,11 @@ const io = new Server(server, {
 
 // --- MongoDB Configuration ---
 const uri = process.env.MONGO_URI; 
-
-if (!uri) {
-    console.error("CRITICAL ERROR: MONGO_URI environment variable is not set.");
-    process.exit(1); 
-}
-
 const dbName = "chatAppDB"; 
 const collectionName = "messages";
 let messagesCollection; 
+let useMemoryStore = false;
+let messagesMemory = [];
 
 // --- Global Chat State for User Exclusivity ---
 const activeUsers = {
@@ -92,10 +95,58 @@ async function connectDB() {
         startServerLogic(); 
 
     } catch (e) {
-        console.error("--- MONGODB CONNECTION FAILED ---");
-        console.error("Could not connect to MongoDB. Error details:", e.message);
-        process.exit(1); 
+        useMemoryStore = true;
+        console.warn("MongoDB connection failed; switching to in-memory store.");
+        startServerLogic();
     }
+}
+
+async function dbFindAll() {
+    if (useMemoryStore || !messagesCollection) return [...messagesMemory];
+    return await messagesCollection.find({}).toArray();
+}
+
+async function dbInsert(msg) {
+    if (useMemoryStore || !messagesCollection) {
+        const id = new ObjectId();
+        msg._id = id;
+        messagesMemory.push(msg);
+        return { insertedId: id };
+    }
+    const result = await messagesCollection.insertOne(msg);
+    return result;
+}
+
+async function dbUpdateOne(id, set) {
+    if (useMemoryStore || !messagesCollection) {
+        messagesMemory = messagesMemory.map(m => {
+            if (String(m._id) === String(id)) return { ...m, ...set.$set };
+            return m;
+        });
+        return { modifiedCount: 1 };
+    }
+    return await messagesCollection.updateOne({ _id: id }, set);
+}
+
+async function dbUpdateManyByIds(ids, set) {
+    if (useMemoryStore || !messagesCollection) {
+        const idSet = new Set(ids.map(id => String(id)));
+        messagesMemory = messagesMemory.map(m => idSet.has(String(m._id)) ? { ...m, ...set.$set } : m);
+        return { modifiedCount: ids.length };
+    }
+    return await messagesCollection.updateMany({ _id: { $in: ids } }, set);
+}
+
+async function dbFindIdsByQuery(query) {
+    if (useMemoryStore || !messagesCollection) {
+        return messagesMemory.filter(m => {
+            for (const k in query) {
+                if (m[k] !== query[k]) return false;
+            }
+            return true;
+        }).map(m => ({ _id: m._id }));
+    }
+    return await messagesCollection.find(query).project({ _id: 1 }).toArray();
 }
 
 // --- Helper Functions ---
@@ -137,24 +188,31 @@ function startServerLogic() {
     app.use(express.static(path.join(__dirname)));
     app.use('/uploads', express.static('uploads'));
 
-    // HTTP endpoint for file uploads
-    app.post('/upload', upload.single('mediaFile'), (req, res) => {
-        if (!req.file) {
-            return res.status(400).send('No file uploaded.');
-        }
-        const fileURL = '/uploads/' + req.file.filename;
-        const mimeType = req.file.mimetype;
-        let fileType = 'text'; 
+    app.get('/health', (req, res) => {
+        res.status(200).send('OK');
+    });
 
-        if (mimeType.startsWith('image')) {
-            fileType = 'image';
-        } else if (mimeType.startsWith('video')) {
-            fileType = 'video';
-        } else if (mimeType === 'application/pdf') {
-            fileType = 'document';
-        }
-        
-        res.json({ url: fileURL, type: fileType });
+    // HTTP endpoint for file uploads
+    app.post('/upload', (req, res) => {
+        upload.single('mediaFile')(req, res, (err) => {
+            if (err) {
+                return res.status(400).json({ error: err.message });
+            }
+            if (!req.file) {
+                return res.status(400).send('No file uploaded.');
+            }
+            const fileURL = '/uploads/' + req.file.filename;
+            const mimeType = req.file.mimetype;
+            let fileType = 'text';
+            if (mimeType.startsWith('image')) {
+                fileType = 'image';
+            } else if (mimeType.startsWith('video')) {
+                fileType = 'video';
+            } else if (mimeType === 'application/pdf') {
+                fileType = 'document';
+            }
+            res.json({ url: fileURL, type: fileType });
+        });
     });
 
 
@@ -176,8 +234,7 @@ function startServerLogic() {
         socket.emit('presence update', presenceData); 
 
         try {
-            // Include status in history (messages default to 'sent' if status field is missing)
-            const messagesHistory = await messagesCollection.find({}).toArray();
+            const messagesHistory = (await dbFindAll()).map(m => ({ ...m, _id: String(m._id) }));
             socket.emit('history', messagesHistory);
         } catch (e) {
             console.error('Error fetching history:', e);
@@ -204,20 +261,14 @@ function startServerLogic() {
                 const otherUserId = userId === 'i' ? 'x' : 'i';
                 (async () => {
                     try {
-                        const pending = await messagesCollection
-                            .find({ status: 'sent', senderID: otherUserId })
-                            .project({ _id: 1 })
-                            .toArray();
+                        const pending = await dbFindIdsByQuery({ status: 'sent', senderID: otherUserId });
                         if (pending.length > 0) {
                             const ids = pending.map(doc => doc._id);
-                            await messagesCollection.updateMany(
-                                { _id: { $in: ids } },
-                                { $set: { status: 'delivered' } }
-                            );
+                            await dbUpdateManyByIds(ids, { $set: { status: 'delivered' } });
                             const senderSocket = activeUsers[otherUserId];
                             if (senderSocket) {
                                 ids.forEach(id => {
-                                    io.to(senderSocket).emit('message delivered', { messageID: id });
+                                    io.to(senderSocket).emit('message delivered', { messageID: String(id) });
                                 });
                             }
                         }
@@ -247,13 +298,13 @@ function startServerLogic() {
 
         // --- Get History (for periodic refresh) ---
         socket.on('get history', async () => {
-            try {
-                const messagesHistory = await messagesCollection.find({}).toArray();
-                socket.emit('history', messagesHistory);
-            } catch (e) {
-                console.error('Error fetching history (get history):', e);
-            }
-        });
+                try {
+                    const messagesHistory = (await dbFindAll()).map(m => ({ ...m, _id: String(m._id) }));
+                    socket.emit('history', messagesHistory);
+                } catch (e) {
+                    console.error('Error fetching history (get history):', e);
+                }
+            });
         
         // --- Chat Message Event ---
         socket.on('chat message', async (msg) => {
@@ -261,10 +312,10 @@ function startServerLogic() {
             msg.status = 'sent';
             let result;
             try {
-                result = await messagesCollection.insertOne(msg);
+                result = await dbInsert(msg);
                 console.log(`Message (Type: ${msg.type}) saved to DB.`);
                 // CRITICAL: Add the MongoDB _id back to the message object before broadcasting
-                msg._id = result.insertedId;
+                msg._id = String(result.insertedId);
             } catch (e) {
                 console.error('Error saving message:', e);
             }
@@ -285,15 +336,11 @@ function startServerLogic() {
             const receiverOnline = activeUsers[receiverID] !== null;
             if (receiverOnline) {
                 try {
-                    await messagesCollection.updateOne(
-                        { _id: result.insertedId },
-                        { $set: { status: 'delivered' } }
-                    );
+                    await dbUpdateOne(result.insertedId, { $set: { status: 'delivered' } });
                 } catch (e) {
                     console.error('Error updating message to delivered:', e);
                 }
-                // Notify only the sender connection
-                socket.emit('message delivered', { messageID: msg._id });
+                socket.emit('message delivered', { messageID: String(result.insertedId) });
             }
         });
 
@@ -302,10 +349,7 @@ function startServerLogic() {
             
             // 1. Update the message status in the database
             try {
-                const updateResult = await messagesCollection.updateOne(
-                    { _id: new ObjectId(data.messageID) },
-                    { $set: { status: 'read' } }
-                );
+                const updateResult = await dbUpdateOne(new ObjectId(data.messageID), { $set: { status: 'read' } });
                 
                 if (updateResult.modifiedCount > 0) {
                     console.log(`Message ${data.messageID} marked as read.`);
@@ -317,7 +361,7 @@ function startServerLogic() {
             
             // 2. Notify the sender (all clients) of the status change
             io.emit('message status update', { 
-                messageID: data.messageID,
+                messageID: String(data.messageID),
                 status: 'read'
             });
         });
@@ -325,10 +369,7 @@ function startServerLogic() {
         // --- Delivery Ack from Receiver ---
         socket.on('message delivered', async (data) => {
             try {
-                await messagesCollection.updateOne(
-                    { _id: new ObjectId(data.messageID) },
-                    { $set: { status: 'delivered' } }
-                );
+                await dbUpdateOne(new ObjectId(data.messageID), { $set: { status: 'delivered' } });
             } catch (e) {
                 console.error('Error setting delivered status:', e);
                 return;
@@ -336,7 +377,15 @@ function startServerLogic() {
             const senderId = data.senderID;
             const senderSocket = activeUsers[senderId];
             if (senderSocket) {
-                io.to(senderSocket).emit('message delivered', { messageID: data.messageID });
+                io.to(senderSocket).emit('message delivered', { messageID: String(data.messageID) });
+            }
+        });
+
+        socket.on('typing', (data) => {
+            const otherUserId = data.userID === 'i' ? 'x' : 'i';
+            const otherSocket = activeUsers[otherUserId];
+            if (otherSocket) {
+                io.to(otherSocket).emit('typing', { userID: data.userID, isTyping: data.isTyping });
             }
         });
 
@@ -368,7 +417,15 @@ function startServerLogic() {
         
         // Start periodic presence updates (every 30 seconds)
         setInterval(broadcastPresenceUpdate, 30000);
-    });
-} 
 
-connectDB();
+        // External uptime monitors should ping /health; no internal ping is started.
+    });
+}
+
+if (!uri) {
+    useMemoryStore = true;
+    console.warn("MONGO_URI not set; using in-memory store.");
+    startServerLogic();
+} else {
+    connectDB();
+}

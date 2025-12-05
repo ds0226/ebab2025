@@ -41,6 +41,7 @@ function clearStoredOfflineStart(uid) {
 const messages = document.getElementById('messages');
 const form = document.getElementById('form');
 const input = document.getElementById('input');
+const sendButton = document.getElementById('send-button');
 const selectionScreen = document.getElementById('initial-user-selection');
 const chatContainer = document.getElementById('chat-container');
 const currentUserDisplay = document.getElementById('my-user-id-display');
@@ -48,16 +49,8 @@ const otherUserStatus = document.getElementById('other-user-status');
 const otherUserName = document.getElementById('other-user-name');
 const photoInput = document.getElementById('photo-input');
 const photoButton = document.getElementById('photo-button');
-function autosizeInput() {
-    if (!input) return;
-    input.style.height = 'auto';
-    const maxH = 100;
-    const h = Math.min(input.scrollHeight, maxH);
-    input.style.height = h + 'px';
-    if (form && messages) {
-        messages.style.marginBottom = form.offsetHeight + 'px';
-    }
-}
+let typingTimeout = null;
+let lastInputHeightPx = null;
 
 
 // --- Utility Functions ---
@@ -72,7 +65,11 @@ function getClockTime(timestamp) {
 }
 
 function scrollToBottom() {
-    messages.scrollTop = messages.scrollHeight;
+    const threshold = 80;
+    const distance = messages.scrollHeight - messages.scrollTop - messages.clientHeight;
+    if (distance < threshold) {
+        messages.scrollTop = messages.scrollHeight;
+    }
 }
 
 function getTimeAgo(timestamp) {
@@ -219,8 +216,8 @@ function createMessageElement(messageData) {
     const li = document.createElement('li');
     li.className = `message-bubble ${isMyMessage ? 'my-message' : 'their-message'}`;
     // Use the MongoDB ID to target for status updates later
-    if(messageData._id) {
-        li.dataset.id = messageData._id; 
+    if (messageData._id) {
+        li.dataset.id = String(messageData._id);
     }
 
     const contentDiv = document.createElement('div');
@@ -250,7 +247,24 @@ function createMessageElement(messageData) {
     } else {
         const textSpan = document.createElement('span');
         textSpan.className = 'message-text';
-        textSpan.textContent = messageData.message;
+        const msg = String(messageData.message || '');
+        const frag = document.createDocumentFragment();
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        let lastIndex = 0;
+        let match;
+        while ((match = urlRegex.exec(msg)) !== null) {
+            const url = match[1];
+            if (match.index > lastIndex) frag.appendChild(document.createTextNode(msg.slice(lastIndex, match.index)));
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.textContent = url;
+            frag.appendChild(a);
+            lastIndex = match.index + url.length;
+        }
+        if (lastIndex < msg.length) frag.appendChild(document.createTextNode(msg.slice(lastIndex)));
+        textSpan.appendChild(frag);
         contentDiv.appendChild(textSpan);
     }
 
@@ -302,7 +316,7 @@ function renderMessage(messageData) {
 // --- Socket.IO Event Listeners ---
 socket.on('chat message', (msg) => {
     // Check if a list item with this ID already exists (prevents duplicates when sender receives own msg)
-    if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
+    if (!document.querySelector(`li[data-id="${String(msg._id)}"]`)) {
         renderMessage(msg);
     }
     lastActivityTs = Date.now();
@@ -365,9 +379,9 @@ socket.on('message status update', (data) => {
 
 // Delivered update (receiver online)
 socket.on('message delivered', (data) => {
-    const listItem = document.querySelector(`li[data-id="${data.messageID}"]`);
+    const listItem = document.querySelector(`li[data-id="${String(data.messageID)}"]`);
     if (listItem) {
-        const statusSpan = listItem.querySelector('.message-time .status-sent');
+        const statusSpan = listItem.querySelector('.message-time .status-sent') || listItem.querySelector('.message-time .status-delivered');
         if (statusSpan) {
             statusSpan.classList.remove('status-sent');
             statusSpan.classList.add('status-delivered');
@@ -385,7 +399,7 @@ socket.on('message delivered', (data) => {
 
 form.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (input.value && currentUser) {
+    if (input.value.trim() && currentUser) {
         const messageData = {
             senderID: currentUser, 
             message: input.value,
@@ -396,6 +410,11 @@ form.addEventListener('submit', (e) => {
 
         socket.emit('chat message', messageData);
         input.value = '';
+        if (lastInputHeightPx) {
+            input.style.height = lastInputHeightPx;
+        }
+        if (sendButton) sendButton.disabled = true;
+        input.focus();
     }
 });
 
@@ -406,7 +425,21 @@ input.addEventListener('keydown', (e) => {
             form.dispatchEvent(new Event('submit', { cancelable: true }));
         }
     }
-    autosizeInput();
+});
+
+input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    const maxH = 160;
+    input.style.height = Math.min(input.scrollHeight, maxH) + 'px';
+    lastInputHeightPx = input.style.height;
+    if (sendButton) sendButton.disabled = input.value.trim().length === 0;
+    if (currentUser) {
+        socket.emit('typing', { userID: currentUser, isTyping: true });
+        if (typingTimeout) clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.emit('typing', { userID: currentUser, isTyping: false });
+        }, 1200);
+    }
 });
 
 input.addEventListener('keypress', (e) => {
@@ -416,7 +449,6 @@ input.addEventListener('keypress', (e) => {
             form.dispatchEvent(new Event('submit', { cancelable: true }));
         }
     }
-    autosizeInput();
 });
 
 // --- User Selection Functionality ---
@@ -484,6 +516,19 @@ socket.on('available users', (inUseList) => {
     });
 });
 
+socket.on('typing', (data) => {
+    if (!currentUser) return;
+    const otherUser = currentUser === 'i' ? 'x' : 'i';
+    if (data.userID === otherUser) {
+        if (data.isTyping) {
+            otherUserStatus.textContent = 'Typing…';
+            otherUserStatus.className = 'status-typing';
+        } else {
+            updatePresenceDisplays();
+        }
+    }
+});
+
 // --- Enhanced Presence Update Handler ---
 socket.on('presence update', (presenceData) => {
     console.log('Presence update received:', presenceData);
@@ -545,8 +590,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 15000);
     }
     startRefreshWatchdog();
-    autosizeInput();
-    input.addEventListener('input', autosizeInput);
 });
 
 function startRefreshWatchdog() {

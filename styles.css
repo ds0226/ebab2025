@@ -104,6 +104,12 @@ body {
     font-size: 0.95rem;
 }
 
+.status-typing {
+    color: #53bdeb;
+    font-weight: normal;
+    font-size: 0.95rem;
+}
+
 /* --- Messages Container --- */
 #messages {
     list-style-type: none;
@@ -134,7 +140,7 @@ body {
 }
 
 .my-message {
-    background-color: #202c33;
+    background-color: #005c4b;
     align-self: flex-end;
     margin-left: auto;
 }
@@ -146,12 +152,12 @@ body {
 }
 
 .message-text, .message-content a {
-    font-size: 0.75rem;
-    line-height: 1.15;
+    font-size: 0.85rem;
+    line-height: 1.25;
     padding-right: 56px;
     font-weight: 300;
     white-space: pre-wrap;
-    color: rgba(233, 237, 239, 0.85);
+    color: rgba(233, 237, 239, 0.95);
 }
 
 /* Styles for embedded media */
@@ -213,7 +219,7 @@ body {
 #input {
     flex-grow: 1;
     min-height: 34px;
-    max-height: 100px;
+    max-height: 160px;
     padding: 8px 12px;
     margin: 0 6px;
     border: none;
@@ -239,9 +245,19 @@ body {
     cursor: pointer;
 }
 
+#form button:disabled {
+    color: #3a4a54;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 #send-button {
     background-color: transparent;
     color: #00a884;
+}
+
+#send-button:disabled {
+    color: #3d7c68;
 }
 
 #form button svg {
