@@ -72,6 +72,30 @@ function scrollToBottom() {
     }
 }
 
+function forceScrollToBottom() {
+    messages.scrollTop = messages.scrollHeight;
+}
+
+function updateStatusUI(id, status) {
+    const listItem = document.querySelector(`li[data-id="${String(id)}"]`);
+    if (!listItem) return;
+    const statusSpan = listItem.querySelector('.message-time .status-sent, .message-time .status-delivered, .message-time .status-read');
+    if (!statusSpan) return;
+    statusSpan.classList.remove('status-sent');
+    statusSpan.classList.remove('status-delivered');
+    statusSpan.classList.remove('status-read');
+    if (status === 'read') {
+        statusSpan.classList.add('status-read');
+        statusSpan.innerHTML = '\u2713\u2713';
+    } else if (status === 'delivered') {
+        statusSpan.classList.add('status-delivered');
+        statusSpan.innerHTML = '\u2713\u2713';
+    } else {
+        statusSpan.classList.add('status-sent');
+        statusSpan.innerHTML = '\u2713';
+    }
+}
+
 function getTimeAgo(timestamp) {
     if (!timestamp) return null;
     const now = new Date();
@@ -348,6 +372,11 @@ socket.on('history', (messagesHistory) => {
         return;
     }
     lastActivityTs = Date.now();
+    messagesHistory.sort((a, b) => {
+        const ta = new Date(a.timestamp || 0).getTime();
+        const tb = new Date(b.timestamp || 0).getTime();
+        return ta - tb;
+    });
     messagesHistory.forEach(msg => {
         if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
             renderMessage(msg);
@@ -360,36 +389,17 @@ socket.on('history', (messagesHistory) => {
             });
         }
     });
+    forceScrollToBottom();
 });
 
 // --- Real-time Status Update Listener (NEW) ---
 socket.on('message status update', (data) => {
-    if (data.status === 'read') {
-        const listItem = document.querySelector(`li[data-id="${data.messageID}"]`);
-
-        if (listItem) {
-            const statusSpan = listItem.querySelector('.message-time .status-sent, .message-time .status-delivered');
-            if (statusSpan) {
-                statusSpan.classList.remove('status-sent');
-                statusSpan.classList.remove('status-delivered');
-                statusSpan.classList.add('status-read');
-                statusSpan.innerHTML = '\u2713\u2713';
-            }
-        }
-    }
+    if (data.status === 'read') updateStatusUI(data.messageID, 'read');
 });
 
 // Delivered update (receiver online)
 socket.on('message delivered', (data) => {
-    const listItem = document.querySelector(`li[data-id="${String(data.messageID)}"]`);
-    if (listItem) {
-        const statusSpan = listItem.querySelector('.message-time .status-sent') || listItem.querySelector('.message-time .status-delivered');
-        if (statusSpan) {
-            statusSpan.classList.remove('status-sent');
-            statusSpan.classList.add('status-delivered');
-            statusSpan.innerHTML = '\u2713\u2713'; // Double grey checks
-        }
-    }
+    updateStatusUI(data.messageID, 'delivered');
 });
 
 
@@ -490,6 +500,7 @@ socket.on('user selected', (success) => {
             console.log('Rendering pending history for user:', currentUser);
             pendingHistory.forEach(renderMessage);
             pendingHistory = null; // Clear pending history
+            forceScrollToBottom();
         }
 
         // Request latest presence data
@@ -624,7 +635,7 @@ function observeForRead(li, messageData) {
                 li.dataset.readObserved = '1';
             }
         });
-    }, { threshold: 0.6 });
+    }, { threshold: 0.3 });
     io.observe(li);
 }
 
