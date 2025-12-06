@@ -38,7 +38,9 @@ const io = new Server(server, {
     cors: {
         origin: "*", 
         methods: ["GET", "POST"]
-    }
+    },
+    pingInterval: 5000,
+    pingTimeout: 12000
 }); 
 
 // --- MongoDB Configuration ---
@@ -380,6 +382,13 @@ function startServerLogic() {
             const otherSocket = activeUsers[otherUserId];
             if (otherSocket) {
                 io.to(otherSocket).emit('typing', { userID: data.userID, isTyping: data.isTyping });
+            }
+
+            if (userPresence[data.userID]) {
+                userPresence[data.userID].isOnline = true;
+                userPresence[data.userID].lastSeen = new Date().toISOString();
+                userPresence[data.userID].socketId = socket.id;
+                broadcastPresenceUpdate();
             }
         });
 

@@ -565,8 +565,7 @@ socket.on('presence update', (presenceData) => {
             updatePresenceDisplays();
             updateMessageTimestamps();
             socket.emit('get presence update');
-            socket.emit('get history');
-        }, 15000);
+        }, 10000);
     }
 });
 
@@ -601,8 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePresenceDisplays();
             updateMessageTimestamps();
             socket.emit('get presence update');
-            socket.emit('get history');
-        }, 15000);
+        }, 10000);
     }
     startRefreshWatchdog();
 });
