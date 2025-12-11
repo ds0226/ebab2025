@@ -34,10 +34,21 @@ const upload = multer({
 
 
 // --- Socket.IO CORS ---
+const allowedOrigins = new Set([
+    process.env.ALLOWED_ORIGIN || 'https://ebab2025.onrender.com',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000'
+]);
+
 const io = new Server(server, {
     cors: {
-        origin: "*", 
+        origin: Array.from(allowedOrigins), 
         methods: ["GET", "POST"]
+    },
+    allowRequest: (req, callback) => {
+        const origin = req.headers.origin || req.headers.referer || '';
+        const ok = Array.from(allowedOrigins).some(o => origin && origin.startsWith(o));
+        callback(null, ok);
     },
     pingInterval: 5000,
     pingTimeout: 12000
@@ -234,7 +245,9 @@ function startServerLogic() {
 
 
     io.on('connection', async (socket) => {
-        console.log('A user connected:', socket.id);
+        const origin = socket.handshake.headers.origin || socket.handshake.headers.referer || '';
+        const ua = socket.handshake.headers['user-agent'] || '';
+        console.log('Socket connected:', socket.id, origin, ua);
 
         const initialInUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
         socket.emit('available users', initialInUseList);
