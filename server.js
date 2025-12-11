@@ -181,6 +181,27 @@ function broadcastPresenceUpdate() {
     console.log('Presence update broadcasted:', presenceData);
 }
 
+function reconcilePresence() {
+    for (const userId in userPresence) {
+        const sid = userPresence[userId].socketId;
+        const sock = sid ? io.sockets.sockets.get(sid) : null;
+        const connected = !!(sock && sock.connected);
+        if (!connected) {
+            if (userPresence[userId].isOnline) {
+                userPresence[userId].isOnline = false;
+                if (!userPresence[userId].lastSeen) {
+                    userPresence[userId].lastSeen = new Date().toISOString();
+                }
+            }
+            userPresence[userId].socketId = null;
+            if (activeUsers[userId] && activeUsers[userId] === sid) {
+                activeUsers[userId] = null;
+            }
+        }
+    }
+    broadcastPresenceUpdate();
+}
+
 // --- Server and Socket.IO Logic ---
 function startServerLogic() {
     app.use(express.static(path.join(__dirname)));
@@ -420,6 +441,8 @@ function startServerLogic() {
         
         // Start periodic presence updates (every 30 seconds)
         setInterval(broadcastPresenceUpdate, 30000);
+
+        setInterval(reconcilePresence, 10000);
 
         // External uptime monitors should ping /health; no internal ping is started.
     });
