@@ -29,7 +29,19 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 }
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowed = new Set([
+            'image/png',
+            'image/jpeg',
+            'image/jpg',
+            'image/gif',
+            'video/mp4',
+            'video/webm',
+            'application/pdf'
+        ]);
+        cb(null, allowed.has(file.mimetype));
+    }
 });
 
 
@@ -61,6 +73,33 @@ const collectionName = "messages";
 let messagesCollection; 
 let useMemoryStore = false;
 let messagesMemory = [];
+
+const MAX_MESSAGE_CHARS = 4096;
+const ALLOWED_MESSAGE_TYPES = new Set(['text','image','video','document']);
+const RATE_LIMIT_WINDOW_MS = 30000;
+const RATE_LIMIT_MAX = 25;
+const socketEventWindows = new Map();
+
+function rateLimit(socket, key) {
+    const now = Date.now();
+    let w = socketEventWindows.get(socket.id);
+    if (!w) { w = {}; socketEventWindows.set(socket.id, w); }
+    if (!w[key]) w[key] = [];
+    w[key] = w[key].filter(ts => now - ts < RATE_LIMIT_WINDOW_MS);
+    if (w[key].length >= RATE_LIMIT_MAX) return false;
+    w[key].push(now);
+    return true;
+}
+
+function isValidMessagePayload(msg) {
+    const sid = msg.senderID || msg.sender;
+    if (sid !== 'i' && sid !== 'x') return false;
+    if (!ALLOWED_MESSAGE_TYPES.has(msg.type)) return false;
+    if (typeof msg.message !== 'string') return false;
+    if (msg.message.length === 0) return false;
+    if (msg.message.length > MAX_MESSAGE_CHARS) msg.message = msg.message.slice(0, MAX_MESSAGE_CHARS);
+    return true;
+}
 
 // --- Global Chat State for User Exclusivity ---
 const activeUsers = {
@@ -100,6 +139,12 @@ async function connectDB() {
         
         const db = client.db(dbName);
         messagesCollection = db.collection(collectionName);
+        try {
+            await messagesCollection.createIndexes([
+                { key: { status: 1, senderID: 1 } },
+                { key: { timestamp: 1 } }
+            ]);
+        } catch (_) {}
         
         startServerLogic(); 
 
@@ -338,6 +383,8 @@ function startServerLogic() {
         
         // --- Chat Message Event ---
         socket.on('chat message', async (msg) => {
+            if (!rateLimit(socket, 'chat')) return;
+            if (!isValidMessagePayload(msg)) return;
             // Add initial status and save
             msg.status = 'sent';
             let result;
@@ -393,6 +440,7 @@ function startServerLogic() {
 
         // --- Read Receipt Event (NEW) ---
         socket.on('message read', async (data) => {
+            if (!rateLimit(socket, 'read')) return;
             const rid = data.readerID;
             if (!rid || activeUsers[rid] !== socket.id) {
                 return;
@@ -425,8 +473,27 @@ function startServerLogic() {
             }
         });
 
+        socket.on('mark conversation read', async (data) => {
+            if (!rateLimit(socket, 'read')) return;
+            const rid = data.readerID;
+            if (!rid || activeUsers[rid] !== socket.id) return;
+            const otherId = rid === 'i' ? 'x' : 'i';
+            try {
+                const pendingDelivered = await dbFindIdsByQuery({ senderID: otherId, status: 'delivered' });
+                const pendingSent = await dbFindIdsByQuery({ senderID: otherId, status: 'sent' });
+                const ids = [...pendingDelivered.map(d => d._id), ...pendingSent.map(d => d._id)];
+                if (ids.length > 0) {
+                    await dbUpdateManyByIds(ids, { $set: { status: 'read' } });
+                    ids.forEach(id => {
+                        io.emit('message status update', { messageID: String(id), status: 'read' });
+                    });
+                }
+            } catch (_) {}
+        });
+
         // --- Delivery Ack from Receiver ---
         socket.on('message delivered', async (data) => {
+            if (!rateLimit(socket, 'delivered')) return;
             const senderId = data.senderID;
             const receiverId = senderId === 'i' ? 'x' : 'i';
             if (activeUsers[receiverId] !== socket.id) {

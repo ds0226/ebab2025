@@ -504,6 +504,7 @@ socket.on('user selected', (success) => {
 
         // Request latest presence data
         socket.emit('get presence update');
+        socket.emit('mark conversation read', { readerID: currentUser });
     } else {
         alert('This user is already taken. Please select the other user.');
         clearStoredSelectedUser();
@@ -593,6 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('select user', currentUser);
         socket.emit('get presence update');
         socket.emit('get history');
+        socket.emit('mark conversation read', { readerID: currentUser });
     }
     if (!presenceTickerId) {
         presenceTickerId = setInterval(() => {
