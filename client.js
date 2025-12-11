@@ -16,6 +16,7 @@ let localOfflineStart = {};
 const OFFLINE_KEY_PREFIX = 'offlineStart_';
 const SELECTED_USER_KEY = 'selectedUser';
 let lastActivityTs = Date.now();
+let windowFocused = true;
 
 function getStoredOfflineStart(uid) {
     try {
@@ -180,9 +181,7 @@ function updatePresenceDisplays() {
 
 // --- Read Receipt Trigger (NEW) ---
 function triggerReadReceipt(messageData) {
-    // Only send a read receipt if:
-    // 1. The message was NOT sent by the current user.
-    // 2. The message has an ID (meaning it was loaded from history or saved by server).
+    if (document.visibilityState !== 'visible' || !windowFocused) return;
     if (messageData.senderID !== currentUser && messageData._id) {
         socket.emit('message read', { 
             readerID: currentUser,
@@ -603,6 +602,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 10000);
     }
     startRefreshWatchdog();
+    window.addEventListener('focus', () => { windowFocused = true; });
+    window.addEventListener('blur', () => { windowFocused = false; });
+    document.addEventListener('visibilitychange', () => { updatePresenceDisplays(); });
 });
 
 function startRefreshWatchdog() {
@@ -627,7 +629,7 @@ function observeForRead(li, messageData) {
     if (li.dataset.readObserved === '1') return;
     const io = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
-            if (entry.isIntersecting) {
+            if (entry.isIntersecting && document.visibilityState === 'visible' && windowFocused) {
                 socket.emit('message read', { readerID: currentUser, messageID: id });
                 io.disconnect();
                 li.dataset.readObserved = '1';

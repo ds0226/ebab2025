@@ -363,6 +363,10 @@ function startServerLogic() {
 
         // --- Read Receipt Event (NEW) ---
         socket.on('message read', async (data) => {
+            const rid = data.readerID;
+            if (!rid || activeUsers[rid] !== socket.id) {
+                return;
+            }
             
             // 1. Update the message status in the database
             try {
@@ -381,20 +385,40 @@ function startServerLogic() {
                 messageID: String(data.messageID),
                 status: 'read'
             });
+
+            // 3. Presence: mark reader online with latest activity
+            if (rid && userPresence[rid]) {
+                userPresence[rid].isOnline = true;
+                userPresence[rid].lastSeen = new Date().toISOString();
+                userPresence[rid].socketId = socket.id;
+                broadcastPresenceUpdate();
+            }
         });
 
         // --- Delivery Ack from Receiver ---
         socket.on('message delivered', async (data) => {
+            const senderId = data.senderID;
+            const receiverId = senderId === 'i' ? 'x' : 'i';
+            if (activeUsers[receiverId] !== socket.id) {
+                return;
+            }
             try {
                 await dbUpdateOne(new ObjectId(data.messageID), { $set: { status: 'delivered' } });
             } catch (e) {
                 console.error('Error setting delivered status:', e);
                 return;
             }
-            const senderId = data.senderID;
             const senderSocket = activeUsers[senderId];
             if (senderSocket) {
                 io.to(senderSocket).emit('message delivered', { messageID: String(data.messageID) });
+            }
+
+            // Presence: infer receiver is the opposite of sender in a 2-user chat
+            if (userPresence[receiverId]) {
+                userPresence[receiverId].isOnline = true;
+                userPresence[receiverId].lastSeen = new Date().toISOString();
+                userPresence[receiverId].socketId = socket.id;
+                broadcastPresenceUpdate();
             }
         });
 
