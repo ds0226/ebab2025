@@ -372,6 +372,23 @@ function startServerLogic() {
                 }
                 socket.emit('message delivered', { messageID: String(result.insertedId) });
             }
+
+            (async () => {
+                try {
+                    const otherUserId = sid === 'i' ? 'x' : 'i';
+                    const pendingOpp = await dbFindIdsByQuery({ status: 'sent', senderID: otherUserId });
+                    if (pendingOpp.length > 0) {
+                        const ids = pendingOpp.map(doc => doc._id);
+                        await dbUpdateManyByIds(ids, { $set: { status: 'delivered' } });
+                        const otherSocket = activeUsers[otherUserId];
+                        if (otherSocket) {
+                            ids.forEach(id => {
+                                io.to(otherSocket).emit('message delivered', { messageID: String(id) });
+                            });
+                        }
+                    }
+                } catch (_) {}
+            })();
         });
 
         // --- Read Receipt Event (NEW) ---
