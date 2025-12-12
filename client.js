@@ -17,6 +17,8 @@ const OFFLINE_KEY_PREFIX = 'offlineStart_';
 const SELECTED_USER_KEY = 'selectedUser';
 let lastActivityTs = Date.now();
 let windowFocused = true;
+let pendingReadIds = new Set();
+let readFlushTimer = null;
 
 function getStoredOfflineStart(uid) {
     try {
@@ -376,20 +378,22 @@ socket.on('history', (messagesHistory) => {
         const tb = new Date(b.timestamp || 0).getTime();
         return ta - tb;
     });
+    const deliverIds = [];
     messagesHistory.forEach(msg => {
         if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
             renderMessage(msg);
         }
         const isIncoming = (msg.senderID || msg.sender) !== currentUser;
         if (isIncoming && msg.status === 'sent' && msg._id) {
-            socket.emit('message delivered', {
-                messageID: msg._id,
-                senderID: msg.senderID || msg.sender
-            });
+            deliverIds.push(msg._id);
         }
     });
     forceScrollToBottom();
     if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        if (deliverIds.length > 0) {
+            socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
+        }
         socket.emit('mark conversation read', { readerID: currentUser });
     }
 });
@@ -634,7 +638,17 @@ function observeForRead(li, messageData) {
     const io = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
             if (entry.isIntersecting && document.visibilityState === 'visible' && windowFocused) {
-                socket.emit('message read', { readerID: currentUser, messageID: id });
+                pendingReadIds.add(id);
+                if (!readFlushTimer) {
+                    readFlushTimer = setTimeout(() => {
+                        const ids = Array.from(pendingReadIds);
+                        pendingReadIds.clear();
+                        readFlushTimer = null;
+                        if (ids.length > 0) {
+                            socket.emit('messages read', { readerID: currentUser, messageIDs: ids });
+                        }
+                    }, 250);
+                }
                 io.disconnect();
                 li.dataset.readObserved = '1';
             }
@@ -642,6 +656,14 @@ function observeForRead(li, messageData) {
     }, { threshold: 0.3 });
     io.observe(li);
 }
+
+socket.on('reconnect', () => {
+    if (currentUser) {
+        socket.emit('select user', currentUser);
+        socket.emit('get presence update');
+        socket.emit('get history');
+    }
+});
 
 // --- Timestamp Ticker for Message Bubbles ---
 function updateMessageTimestamps() {

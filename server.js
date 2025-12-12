@@ -490,6 +490,27 @@ function startServerLogic() {
             }
         });
 
+        socket.on('messages read', async (data) => {
+            if (!rateLimit(socket, 'read')) return;
+            const rid = data.readerID;
+            if (!rid || activeUsers[rid] !== socket.id) return;
+            const ids = Array.isArray(data.messageIDs) ? data.messageIDs : [];
+            if (ids.length === 0) return;
+            try {
+                const objIds = ids.map(id => new ObjectId(id));
+                await dbUpdateManyByIds(objIds, { $set: { status: 'read' } });
+            } catch (_) { return; }
+            ids.forEach(id => {
+                io.emit('message status update', { messageID: String(id), status: 'read' });
+            });
+            if (rid && userPresence[rid]) {
+                userPresence[rid].isOnline = true;
+                userPresence[rid].lastSeen = new Date().toISOString();
+                userPresence[rid].socketId = socket.id;
+                broadcastPresenceUpdate();
+            }
+        });
+
         socket.on('mark conversation read', async (data) => {
             if (!rateLimit(socket, 'read')) return;
             const rid = data.readerID;
@@ -550,6 +571,31 @@ function startServerLogic() {
             }
 
             // Presence: infer receiver is the opposite of sender in a 2-user chat
+            if (userPresence[receiverId]) {
+                userPresence[receiverId].isOnline = true;
+                userPresence[receiverId].lastSeen = new Date().toISOString();
+                userPresence[receiverId].socketId = socket.id;
+                broadcastPresenceUpdate();
+            }
+        });
+
+        socket.on('messages delivered', async (data) => {
+            if (!rateLimit(socket, 'delivered')) return;
+            const senderId = data.senderID;
+            const receiverId = senderId === 'i' ? 'x' : 'i';
+            if (activeUsers[receiverId] !== socket.id) return;
+            const ids = Array.isArray(data.messageIDs) ? data.messageIDs : [];
+            if (ids.length === 0) return;
+            try {
+                const objIds = ids.map(id => new ObjectId(id));
+                await dbUpdateManyByIds(objIds, { $set: { status: 'delivered' } });
+            } catch (_) { return; }
+            const senderSocket = activeUsers[senderId];
+            if (senderSocket) {
+                ids.forEach(id => {
+                    io.to(senderSocket).emit('message delivered', { messageID: String(id) });
+                });
+            }
             if (userPresence[receiverId]) {
                 userPresence[receiverId].isOnline = true;
                 userPresence[receiverId].lastSeen = new Date().toISOString();
