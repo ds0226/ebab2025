@@ -479,14 +479,31 @@ function startServerLogic() {
             if (!rid || activeUsers[rid] !== socket.id) return;
             const otherId = rid === 'i' ? 'x' : 'i';
             try {
-                const pendingDelivered = await dbFindIdsByQuery({ senderID: otherId, status: 'delivered' });
                 const pendingSent = await dbFindIdsByQuery({ senderID: otherId, status: 'sent' });
-                const ids = [...pendingDelivered.map(d => d._id), ...pendingSent.map(d => d._id)];
-                if (ids.length > 0) {
-                    await dbUpdateManyByIds(ids, { $set: { status: 'read' } });
-                    ids.forEach(id => {
+                const sentIds = pendingSent.map(d => d._id);
+                if (sentIds.length > 0) {
+                    await dbUpdateManyByIds(sentIds, { $set: { status: 'delivered' } });
+                    const senderSocket = activeUsers[otherId];
+                    if (senderSocket) {
+                        sentIds.forEach(id => {
+                            io.to(senderSocket).emit('message delivered', { messageID: String(id) });
+                        });
+                    }
+                }
+                const pendingDelivered = await dbFindIdsByQuery({ senderID: otherId, status: 'delivered' });
+                const deliveredIds = pendingDelivered.map(d => d._id);
+                const toRead = [...sentIds, ...deliveredIds];
+                if (toRead.length > 0) {
+                    await dbUpdateManyByIds(toRead, { $set: { status: 'read' } });
+                    toRead.forEach(id => {
                         io.emit('message status update', { messageID: String(id), status: 'read' });
                     });
+                }
+                if (userPresence[rid]) {
+                    userPresence[rid].isOnline = true;
+                    userPresence[rid].lastSeen = new Date().toISOString();
+                    userPresence[rid].socketId = socket.id;
+                    broadcastPresenceUpdate();
                 }
             } catch (_) {}
         });

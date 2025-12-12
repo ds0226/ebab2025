@@ -389,6 +389,9 @@ socket.on('history', (messagesHistory) => {
         }
     });
     forceScrollToBottom();
+    if (currentUser) {
+        socket.emit('mark conversation read', { readerID: currentUser });
+    }
 });
 
 // --- Real-time Status Update Listener (NEW) ---
@@ -504,7 +507,6 @@ socket.on('user selected', (success) => {
 
         // Request latest presence data
         socket.emit('get presence update');
-        socket.emit('mark conversation read', { readerID: currentUser });
     } else {
         alert('This user is already taken. Please select the other user.');
         clearStoredSelectedUser();
