@@ -203,6 +203,19 @@ async function dbFindIdsByQuery(query) {
     return await messagesCollection.find(query).project({ _id: 1 }).toArray();
 }
 
+// Helper that supports legacy records with `sender` or `senderID`
+async function dbFindIdsBySenderStatus(senderId, status) {
+    if (useMemoryStore || !messagesCollection) {
+        return messagesMemory
+            .filter(m => (m.senderID === senderId || m.sender === senderId) && m.status === status)
+            .map(m => ({ _id: m._id }));
+    }
+    return await messagesCollection
+        .find({ status, $or: [{ senderID: senderId }, { sender: senderId }] })
+        .project({ _id: 1 })
+        .toArray();
+}
+
 // --- Helper Functions ---
 function getTimeAgo(timestamp) {
     if (!timestamp) return null;
@@ -336,7 +349,7 @@ function startServerLogic() {
                 const otherUserId = userId === 'i' ? 'x' : 'i';
                 (async () => {
                     try {
-                        const pending = await dbFindIdsByQuery({ status: 'sent', senderID: otherUserId });
+                        const pending = await dbFindIdsBySenderStatus(otherUserId, 'sent');
                         if (pending.length > 0) {
                             const ids = pending.map(doc => doc._id);
                             await dbUpdateManyByIds(ids, { $set: { status: 'delivered' } });
@@ -423,7 +436,7 @@ function startServerLogic() {
             (async () => {
                 try {
                     const otherUserId = sid === 'i' ? 'x' : 'i';
-                    const pendingOpp = await dbFindIdsByQuery({ status: 'sent', senderID: otherUserId });
+                    const pendingOpp = await dbFindIdsBySenderStatus(otherUserId, 'sent');
                     if (pendingOpp.length > 0) {
                         const ids = pendingOpp.map(doc => doc._id);
                         await dbUpdateManyByIds(ids, { $set: { status: 'delivered' } });
@@ -479,7 +492,7 @@ function startServerLogic() {
             if (!rid || activeUsers[rid] !== socket.id) return;
             const otherId = rid === 'i' ? 'x' : 'i';
             try {
-                const pendingSent = await dbFindIdsByQuery({ senderID: otherId, status: 'sent' });
+                const pendingSent = await dbFindIdsBySenderStatus(otherId, 'sent');
                 const sentIds = pendingSent.map(d => d._id);
                 if (sentIds.length > 0) {
                     await dbUpdateManyByIds(sentIds, { $set: { status: 'delivered' } });
@@ -490,7 +503,7 @@ function startServerLogic() {
                         });
                     }
                 }
-                const pendingDelivered = await dbFindIdsByQuery({ senderID: otherId, status: 'delivered' });
+                const pendingDelivered = await dbFindIdsBySenderStatus(otherId, 'delivered');
                 const deliveredIds = pendingDelivered.map(d => d._id);
                 const toRead = [...sentIds, ...deliveredIds];
                 if (toRead.length > 0) {
