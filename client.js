@@ -145,11 +145,7 @@ function updatePresenceDisplays() {
                 otherUserStatus.textContent = 'Online';
                 otherUserStatus.className = 'status-online';
             } else {
-                if (!otherPresence.lastSeen && !localOfflineStart[otherUser]) {
-                    localOfflineStart[otherUser] = new Date().toISOString();
-                }
-                const fallbackTs = otherPresence.lastSeen || localOfflineStart[otherUser];
-                const durationText = getOfflineDuration(fallbackTs) || 'unknown';
+                const durationText = otherPresence.lastSeen ? (getOfflineDuration(otherPresence.lastSeen) || 'unknown') : 'unknown';
                 otherUserStatus.textContent = `Offline ${durationText}`;
                 otherUserStatus.className = 'status-offline';
             }
@@ -165,11 +161,7 @@ function updatePresenceDisplays() {
             if (!button.getAttribute('data-original-text')) {
                 button.setAttribute('data-original-text', originalText);
             }
-            if (!userPresence.lastSeen && !localOfflineStart[userId]) {
-                localOfflineStart[userId] = new Date().toISOString();
-            }
-            const fallbackTsBtn = userPresence.lastSeen || localOfflineStart[userId];
-            const durationTextBtn = getOfflineDuration(fallbackTsBtn) || 'unknown';
+            const durationTextBtn = userPresence.lastSeen ? (getOfflineDuration(userPresence.lastSeen) || 'unknown') : 'unknown';
             if (userId !== currentUser) {
                 button.textContent = `${originalText} (offline ${durationTextBtn})`;
             }
@@ -559,10 +551,11 @@ socket.on('presence update', (presenceData) => {
             delete localOfflineStart[uid];
             clearStoredOfflineStart(uid);
         } else {
-            const stored = getStoredOfflineStart(uid);
-            const ts = p.lastSeen || localOfflineStart[uid] || stored || new Date().toISOString();
-            localOfflineStart[uid] = ts;
-            setStoredOfflineStart(uid, ts);
+            // rely exclusively on server-provided lastSeen for offline duration
+            if (p.lastSeen) {
+                localOfflineStart[uid] = p.lastSeen;
+                setStoredOfflineStart(uid, p.lastSeen);
+            }
         }
     }
     updatePresenceDisplays();

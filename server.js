@@ -427,6 +427,9 @@ function startServerLogic() {
             // Robust presence update: mark sender online with latest activity
             const sid = msg.senderID || msg.sender;
             if (sid && userPresence[sid]) {
+                if (activeUsers[sid] === null) {
+                    activeUsers[sid] = socket.id;
+                }
                 userPresence[sid].socketId = socket.id;
                 recalcPresence(sid);
                 broadcastPresenceUpdate();
@@ -623,6 +626,9 @@ function startServerLogic() {
             }
 
             if (userPresence[data.userID]) {
+                if (activeUsers[data.userID] === null) {
+                    activeUsers[data.userID] = socket.id;
+                }
                 userPresence[data.userID].socketId = socket.id;
                 recalcPresence(data.userID);
                 broadcastPresenceUpdate();
