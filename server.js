@@ -59,7 +59,11 @@ const io = new Server(server, {
     },
     allowRequest: (req, callback) => {
         const origin = req.headers.origin || req.headers.referer || '';
-        const ok = Array.from(allowedOrigins).some(o => origin && origin.startsWith(o));
+        const host = req.headers.host || '';
+        const isLocalHost = host.startsWith('localhost') || host.startsWith('127.0.0.1');
+        const ok = origin
+            ? Array.from(allowedOrigins).some(o => origin && origin.startsWith(o))
+            : isLocalHost;
         callback(null, ok);
     },
     pingInterval: 5000,
@@ -508,6 +512,11 @@ function startServerLogic() {
                 const toRead = [...sentIds, ...deliveredIds];
                 if (toRead.length > 0) {
                     await dbUpdateManyByIds(toRead, { $set: { status: 'read' } });
+                    console.log('Mark conversation read:', {
+                        reader: rid,
+                        upgradedSentToDelivered: sentIds.length,
+                        markedRead: toRead.length
+                    });
                     toRead.forEach(id => {
                         io.emit('message status update', { messageID: String(id), status: 'read' });
                     });
