@@ -427,6 +427,7 @@ form.addEventListener('submit', (e) => {
         };
 
         socket.emit('chat message', messageData);
+        socket.emit('mark conversation read', { readerID: currentUser });
         input.value = '';
         if (lastInputHeightPx) {
             input.style.height = lastInputHeightPx;

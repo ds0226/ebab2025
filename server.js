@@ -275,6 +275,16 @@ function reconcilePresence() {
     broadcastPresenceUpdate();
 }
 
+function recalcPresence(userId) {
+    const sid = activeUsers[userId];
+    const sock = sid ? io.sockets.sockets.get(sid) : null;
+    const connected = !!(sock && sock.connected);
+    userPresence[userId].isOnline = connected;
+    userPresence[userId].socketId = connected ? sid : null;
+    if (connected) {
+        userPresence[userId].lastSeen = new Date().toISOString();
+    }
+}
 // --- Server and Socket.IO Logic ---
 function startServerLogic() {
     app.use(express.static(path.join(__dirname)));
@@ -337,10 +347,8 @@ function startServerLogic() {
             if (activeUsers[userId] === null) {
                 activeUsers[userId] = socket.id;
                 
-                // Update presence tracking
-                userPresence[userId].isOnline = true;
-                userPresence[userId].lastSeen = new Date().toISOString();
                 userPresence[userId].socketId = socket.id;
+                recalcPresence(userId);
                 
                 socket.emit('user selected', true);
                 console.log(`User ${userId} is now online`);
@@ -419,9 +427,8 @@ function startServerLogic() {
             // Robust presence update: mark sender online with latest activity
             const sid = msg.senderID || msg.sender;
             if (sid && userPresence[sid]) {
-                userPresence[sid].isOnline = true;
-                userPresence[sid].lastSeen = new Date().toISOString();
                 userPresence[sid].socketId = socket.id;
+                recalcPresence(sid);
                 broadcastPresenceUpdate();
             }
 
@@ -450,6 +457,15 @@ function startServerLogic() {
                                 io.to(otherSocket).emit('message delivered', { messageID: String(id) });
                             });
                         }
+                    }
+                    const deliveredToReader = await dbFindIdsBySenderStatus(otherUserId, 'delivered');
+                    if (deliveredToReader.length > 0) {
+                        const idsRead = deliveredToReader.map(doc => doc._id);
+                        await dbUpdateManyByIds(idsRead, { $set: { status: 'read' } });
+                        console.log('Reply read upgrade:', { reader: sid, count: idsRead.length });
+                        idsRead.forEach(id => {
+                            io.emit('message status update', { messageID: String(id), status: 'read' });
+                        });
                     }
                 } catch (_) {}
             })();
@@ -483,9 +499,8 @@ function startServerLogic() {
 
             // 3. Presence: mark reader online with latest activity
             if (rid && userPresence[rid]) {
-                userPresence[rid].isOnline = true;
-                userPresence[rid].lastSeen = new Date().toISOString();
                 userPresence[rid].socketId = socket.id;
+                recalcPresence(rid);
                 broadcastPresenceUpdate();
             }
         });
@@ -504,9 +519,8 @@ function startServerLogic() {
                 io.emit('message status update', { messageID: String(id), status: 'read' });
             });
             if (rid && userPresence[rid]) {
-                userPresence[rid].isOnline = true;
-                userPresence[rid].lastSeen = new Date().toISOString();
                 userPresence[rid].socketId = socket.id;
+                recalcPresence(rid);
                 broadcastPresenceUpdate();
             }
         });
@@ -543,9 +557,8 @@ function startServerLogic() {
                     });
                 }
                 if (userPresence[rid]) {
-                    userPresence[rid].isOnline = true;
-                    userPresence[rid].lastSeen = new Date().toISOString();
                     userPresence[rid].socketId = socket.id;
+                    recalcPresence(rid);
                     broadcastPresenceUpdate();
                 }
             } catch (_) {}
@@ -572,9 +585,8 @@ function startServerLogic() {
 
             // Presence: infer receiver is the opposite of sender in a 2-user chat
             if (userPresence[receiverId]) {
-                userPresence[receiverId].isOnline = true;
-                userPresence[receiverId].lastSeen = new Date().toISOString();
                 userPresence[receiverId].socketId = socket.id;
+                recalcPresence(receiverId);
                 broadcastPresenceUpdate();
             }
         });
@@ -597,9 +609,8 @@ function startServerLogic() {
                 });
             }
             if (userPresence[receiverId]) {
-                userPresence[receiverId].isOnline = true;
-                userPresence[receiverId].lastSeen = new Date().toISOString();
                 userPresence[receiverId].socketId = socket.id;
+                recalcPresence(receiverId);
                 broadcastPresenceUpdate();
             }
         });
@@ -612,9 +623,8 @@ function startServerLogic() {
             }
 
             if (userPresence[data.userID]) {
-                userPresence[data.userID].isOnline = true;
-                userPresence[data.userID].lastSeen = new Date().toISOString();
                 userPresence[data.userID].socketId = socket.id;
+                recalcPresence(data.userID);
                 broadcastPresenceUpdate();
             }
         });
