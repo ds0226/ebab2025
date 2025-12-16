@@ -203,6 +203,17 @@ body {
     font-weight: normal;
 }
 
+.date-separator {
+    align-self: center;
+    background-color: #2a3942;
+    color: #d1d7db;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    margin: 12px 0;
+    display: inline-block;
+}
+
 /* --- Input Form (Bottom) --- */
 #form {
     display: flex;

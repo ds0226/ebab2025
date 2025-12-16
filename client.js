@@ -67,6 +67,38 @@ function getClockTime(timestamp) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+function getDateKey(timestamp) {
+    const d = timestamp ? new Date(timestamp) : new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function getDateLabel(timestamp) {
+    const d = timestamp ? new Date(timestamp) : new Date();
+    const now = new Date();
+    const todayKey = getDateKey(now.toISOString());
+    const yest = new Date(now);
+    yest.setDate(now.getDate() - 1);
+    const yesterdayKey = getDateKey(yest.toISOString());
+    const key = getDateKey(d.toISOString());
+    if (key === todayKey) return 'Today';
+    if (key === yesterdayKey) return 'Yesterday';
+    return d.toLocaleDateString(undefined, { weekday: 'long' });
+}
+
+function ensureDateStamp(timestamp) {
+    const key = getDateKey(timestamp);
+    if (!messages.querySelector(`li.date-separator[data-date="${key}"]`)) {
+        const li = document.createElement('li');
+        li.className = 'date-separator';
+        li.dataset.date = key;
+        li.textContent = getDateLabel(timestamp);
+        messages.appendChild(li);
+    }
+}
+
 function scrollToBottom() {
     const threshold = 80;
     const distance = messages.scrollHeight - messages.scrollTop - messages.clientHeight;
@@ -322,6 +354,8 @@ function createMessageElement(messageData) {
 }
 
 function renderMessage(messageData) {
+    const ts = messageData.timestamp || new Date().toISOString();
+    ensureDateStamp(ts);
     messages.appendChild(createMessageElement(messageData));
     scrollToBottom();
     const senderKey = messageData.senderID || messageData.sender;
