@@ -83,9 +83,24 @@ function getDateLabel(timestamp) {
     yest.setDate(now.getDate() - 1);
     const yesterdayKey = getDateKey(yest.toISOString());
     const key = getDateKey(d.toISOString());
+    
     if (key === todayKey) return 'Today';
     if (key === yesterdayKey) return 'Yesterday';
-    return d.toLocaleDateString(undefined, { weekday: 'long' });
+    
+    // For messages within the last 6 days, show day name
+    const sixDaysAgo = new Date(now);
+    sixDaysAgo.setDate(now.getDate() - 6);
+    
+    if (d > sixDaysAgo) {
+        return d.toLocaleDateString(undefined, { weekday: 'long' });
+    }
+    
+    // For older messages, show full date (MM/DD/YYYY format)
+    return d.toLocaleDateString(undefined, { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit' 
+    });
 }
 
 function ensureDateStamp(timestamp) {
