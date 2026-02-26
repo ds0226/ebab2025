@@ -20,6 +20,11 @@ let windowFocused = true;
 let pendingReadIds = new Set();
 let readFlushTimer = null;
 
+// Infinite scroll variables
+let isLoading = false;
+let hasMoreMessages = true;
+const MESSAGES_PER_PAGE = 50;
+
 function getStoredOfflineStart(uid) {
     try {
         return localStorage.getItem(OFFLINE_KEY_PREFIX + uid);
@@ -381,6 +386,113 @@ function renderMessage(messageData) {
     }
 }
 
+// --- Message Loading and Infinite Scroll ---
+async function loadMessages(before = null) {
+    if (isLoading || !hasMoreMessages) return [];
+    
+    isLoading = true;
+    showLoadingIndicator(true);
+    
+    try {
+        const url = new URL('/api/messages', window.location.origin);
+        if (before) {
+            url.searchParams.append('before', before.getTime());
+        }
+        url.searchParams.append('limit', MESSAGES_PER_PAGE);
+        
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to load messages');
+        
+        const newMessages = await response.json();
+        hasMoreMessages = newMessages.length === MESSAGES_PER_PAGE;
+        return newMessages;
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        return [];
+    } finally {
+        isLoading = false;
+        showLoadingIndicator(false);
+    }
+}
+
+function showLoadingIndicator(show) {
+    let loader = document.getElementById('loading-indicator');
+    if (show && !loader) {
+        loader = document.createElement('div');
+        loader.id = 'loading-indicator';
+        loader.textContent = 'Loading...';
+        loader.style.padding = '10px';
+        loader.style.textAlign = 'center';
+        loader.style.color = '#666';
+        loader.style.fontStyle = 'italic';
+        messages.insertBefore(loader, messages.firstChild);
+    } else if (!show && loader) {
+        loader.remove();
+    }
+}
+
+// Initialize chat with initial messages
+async function initChat() {
+    try {
+        // Clear existing messages
+        messages.innerHTML = '';
+        
+        // Load initial messages (last 2 days)
+        const initialMessages = await loadMessages();
+        
+        if (initialMessages.length > 0) {
+            const fragment = document.createDocumentFragment();
+            initialMessages.reverse().forEach(msg => {
+                const element = createMessageElement(msg);
+                fragment.appendChild(element);
+                observeForRead(element, msg);
+            });
+            messages.appendChild(fragment);
+            scrollToBottom();
+        }
+        
+        // Initialize infinite scroll
+        initInfiniteScroll();
+    } catch (error) {
+        console.error('Error initializing chat:', error);
+    }
+}
+
+// Initialize infinite scroll
+function initInfiniteScroll() {
+    let lastScrollTop = 0;
+    
+    messages.addEventListener('scroll', async () => {
+        const scrollTop = messages.scrollTop;
+        
+        // Only load more if we're near the top and not already loading
+        if (scrollTop < 100 && scrollTop < lastScrollTop && !isLoading && hasMoreMessages) {
+            const firstMessage = messages.querySelector('li');
+            if (!firstMessage) return;
+            
+            const firstMessageDate = new Date(firstMessage.dataset.timestamp);
+            const newMessages = await loadMessages(firstMessageDate);
+            
+            if (newMessages.length > 0) {
+                const fragment = document.createDocumentFragment();
+                newMessages.reverse().forEach(msg => {
+                    const element = createMessageElement(msg);
+                    fragment.insertBefore(element, messages.firstChild);
+                    observeForRead(element, msg);
+                });
+                
+                // Maintain scroll position
+                const oldScrollHeight = messages.scrollHeight;
+                messages.insertBefore(fragment, messages.firstChild);
+                const newScrollHeight = messages.scrollHeight;
+                messages.scrollTop = newScrollHeight - oldScrollHeight + scrollTop;
+            }
+        }
+        
+        lastScrollTop = scrollTop;
+    });
+}
+
 // --- Socket.IO Event Listeners ---
 socket.on('chat message', (msg) => {
     // Check if a list item with this ID already exists (prevents duplicates when sender receives own msg)
@@ -407,37 +519,7 @@ socket.on('chat message', (msg) => {
     }
 });
 
-socket.on('history', (messagesHistory) => {
-    if (!currentUser) {
-        pendingHistory = messagesHistory;
-        console.log('History received but pending user selection:', messagesHistory.length, 'messages');
-        return;
-    }
-    lastActivityTs = Date.now();
-    messagesHistory.sort((a, b) => {
-        const ta = new Date(a.timestamp || 0).getTime();
-        const tb = new Date(b.timestamp || 0).getTime();
-        return ta - tb;
-    });
-    const deliverIds = [];
-    messagesHistory.forEach(msg => {
-        if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
-            renderMessage(msg);
-        }
-        const isIncoming = (msg.senderID || msg.sender) !== currentUser;
-        if (isIncoming && msg.status === 'sent' && msg._id) {
-            deliverIds.push(msg._id);
-        }
-    });
-    forceScrollToBottom();
-    if (currentUser) {
-        const otherUser = currentUser === 'i' ? 'x' : 'i';
-        if (deliverIds.length > 0) {
-            socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
-        }
-        socket.emit('mark conversation read', { readerID: currentUser });
-    }
-});
+// Old history event listener removed - now using API-based loading with infinite scroll
 
 // --- Real-time Status Update Listener (NEW) ---
 socket.on('message status update', (data) => {
@@ -530,7 +612,7 @@ function selectUser(userId) {
     socket.emit('select user', userId);
 }
 
-socket.on('user selected', (success) => {
+socket.on('user selected', async (success) => {
     if (success) {
         selectionScreen.style.display = 'none';
         chatContainer.style.display = 'flex';
@@ -541,15 +623,9 @@ socket.on('user selected', (success) => {
         otherUserName.textContent = otherUser.toUpperCase();
         setStoredSelectedUser(currentUser);
         
+        // Initialize chat with messages
+        await initChat();
         input.focus();
-
-        // Render pending history now that we know who the current user is
-        if (pendingHistory && pendingHistory.length > 0) {
-            console.log('Rendering pending history for user:', currentUser);
-            pendingHistory.forEach(renderMessage);
-            pendingHistory = null; // Clear pending history
-            forceScrollToBottom();
-        }
 
         // Request latest presence data
         socket.emit('get presence update');

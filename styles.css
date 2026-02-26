@@ -123,6 +123,17 @@ body {
     display: flex;
     flex-direction: column;
     align-items: stretch; /* Allow proper message alignment */
+    scroll-behavior: smooth; /* Smooth scrolling */
+    min-height: 0; /* Important for flexbox scrolling */
+}
+
+/* Loading indicator style */
+#loading-indicator {
+    padding: 10px;
+    text-align: center;
+    color: #8696a0;
+    font-style: italic;
+    font-size: 0.85rem;
 }
 
 /* --- Message Bubbles --- */
