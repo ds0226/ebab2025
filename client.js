@@ -514,18 +514,24 @@ function showLoadMoreButton() {
             if (fullHistory) {
                 console.log('Full history available:', fullHistory.length, 'messages');
                 
-                const firstMessage = messages.querySelector('li');
-                if (firstMessage) {
-                    const firstMessageDate = new Date(firstMessage.dataset.timestamp);
-                    console.log('First message date:', firstMessageDate);
+                // Find the oldest currently displayed message
+                const displayedMessages = Array.from(messages.querySelectorAll('li'));
+                if (displayedMessages.length > 0) {
+                    // Get the timestamp from the first (oldest) displayed message
+                    const oldestDisplayedId = displayedMessages[0].dataset.id;
+                    const oldestDisplayedMsg = fullHistory.find(msg => msg._id === oldestDisplayedId);
                     
-                    // Find older messages that aren't already displayed
-                    const olderMessages = fullHistory.filter(msg => {
-                        const msgDate = new Date(msg.timestamp);
-                        const isOlder = msgDate < firstMessageDate;
-                        const notDisplayed = !document.querySelector(`li[data-id="${msg._id}"]`);
-                        return isOlder && notDisplayed;
-                    });
+                    if (oldestDisplayedMsg) {
+                        const firstMessageDate = new Date(oldestDisplayedMsg.timestamp);
+                        console.log('First message date:', firstMessageDate, 'from message:', oldestDisplayedMsg);
+                        
+                        // Find older messages that aren't already displayed
+                        const olderMessages = fullHistory.filter(msg => {
+                            const msgDate = new Date(msg.timestamp);
+                            const isOlder = msgDate < firstMessageDate;
+                            const notDisplayed = !document.querySelector(`li[data-id="${msg._id}"]`);
+                            return isOlder && notDisplayed;
+                        });
                     
                     console.log('Found older messages:', olderMessages.length);
                     
@@ -555,10 +561,10 @@ function showLoadMoreButton() {
                         console.log('No older messages found to display');
                     }
                 } else {
-                    console.log('No first message found');
+                    console.log('No oldest displayed message found');
                 }
             } else {
-                console.log('No full history available');
+                console.log('No displayed messages found');
             }
         });
         messages.insertBefore(loadMoreBtn, messages.firstChild);
