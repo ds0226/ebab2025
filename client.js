@@ -522,14 +522,14 @@ function showLoadMoreButton() {
                 console.log('Messages not displayed:', notDisplayed.length);
                 
                 if (notDisplayed.length > 0) {
-                    // Sort by date (oldest first)
+                    // Sort by date (newest first) so when we insert at beginning, oldest appears first
                     notDisplayed.sort((a, b) => 
-                        new Date(a.timestamp) - new Date(b.timestamp)
+                        new Date(b.timestamp) - new Date(a.timestamp)
                     );
                     
-                    // Take the oldest 50 messages
+                    // Take the newest 50 messages from the older ones
                     const toDisplay = notDisplayed.slice(0, MESSAGES_PER_PAGE);
-                    console.log('Will display', toDisplay.length, 'oldest messages');
+                    console.log('Will display', toDisplay.length, 'messages from older period');
                     
                     // Insert messages at the beginning with proper date handling
                     const fragment = document.createDocumentFragment();
