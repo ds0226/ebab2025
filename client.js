@@ -490,7 +490,7 @@ function showLoadMoreButton() {
     if (!loadMoreBtn) {
         loadMoreBtn = document.createElement('button');
         loadMoreBtn.id = 'load-more-btn';
-        loadMoreBtn.textContent = 'Load 1 Day Older Messages';
+        loadMoreBtn.textContent = 'Load Older Messages';
         loadMoreBtn.style.cssText = `
             display: block;
             margin: 10px auto;
@@ -505,80 +505,53 @@ function showLoadMoreButton() {
         `;
         
         loadMoreBtn.addEventListener('click', () => {
+            console.log('Load more button clicked!');
             loadMoreBtn.remove();
             
             if (fullHistory && fullHistory.length > 0) {
-                // Get the oldest currently displayed message
-                const displayedMessages = Array.from(messages.querySelectorAll('li'));
-                if (displayedMessages.length > 0) {
-                    const oldestDisplayedId = displayedMessages[0].dataset.id;
-                    const oldestDisplayedMsg = fullHistory.find(msg => msg._id === oldestDisplayedId);
+                console.log('Full history has', fullHistory.length, 'messages');
+                
+                // Get all currently displayed message IDs
+                const displayedIds = Array.from(messages.querySelectorAll('li')).map(li => li.dataset.id);
+                console.log('Currently displayed messages:', displayedIds.length);
+                
+                // Find messages not yet displayed
+                const notDisplayed = fullHistory.filter(msg => 
+                    !displayedIds.includes(msg._id)
+                );
+                console.log('Messages not displayed:', notDisplayed.length);
+                
+                if (notDisplayed.length > 0) {
+                    // Sort by date (oldest first)
+                    notDisplayed.sort((a, b) => 
+                        new Date(a.timestamp) - new Date(b.timestamp)
+                    );
                     
-                    if (oldestDisplayedMsg) {
-                        // Calculate 1 day before the oldest displayed message
-                        const oldestDate = new Date(oldestDisplayedMsg.timestamp);
-                        const oneDayBefore = new Date(oldestDate);
-                        oneDayBefore.setDate(oneDayBefore.getDate() - 1);
-                        
-                        console.log('Loading messages from:', oneDayBefore.toDateString());
-                        
-                        // Find messages from 1 day before the oldest displayed
-                        const oneDayOlderMessages = fullHistory.filter(msg => {
-                            const msgDate = new Date(msg.timestamp);
-                            const isOneDayOlder = msgDate < oldestDate && msgDate >= oneDayBefore;
-                            const notDisplayed = !document.querySelector(`li[data-id="${msg._id}"]`);
-                            return isOneDayOlder && notDisplayed;
-                        });
-                        
-                        if (oneDayOlderMessages.length > 0) {
-                            console.log(`Found ${oneDayOlderMessages.length} messages from 1 day before`);
-                            
-                            // Sort by date (oldest first for chronological order)
-                            oneDayOlderMessages.sort((a, b) => 
-                                new Date(a.timestamp) - new Date(b.timestamp)
-                            );
-                            
-                            // Insert at beginning
-                            const fragment = document.createDocumentFragment();
-                            oneDayOlderMessages.forEach(msg => {
-                                const element = createMessageElement(msg);
-                                fragment.appendChild(element);
-                                observeForRead(element, msg);
-                            });
-                            messages.insertBefore(fragment, messages.firstChild);
-                            
-                            // Always show button again for more days
-                            showLoadMoreButton();
-                        } else {
-                            console.log('No messages found from 1 day before');
-                            // Try loading even older messages
-                            const evenOlderMessages = fullHistory.filter(msg => {
-                                const msgDate = new Date(msg.timestamp);
-                                const isEvenOlder = msgDate < oneDayBefore;
-                                const notDisplayed = !document.querySelector(`li[data-id="${msg._id}"]`);
-                                return isEvenOlder && notDisplayed;
-                            });
-                            
-                            if (evenOlderMessages.length > 0) {
-                                console.log('Loading even older messages...');
-                                evenOlderMessages.sort((a, b) => 
-                                    new Date(a.timestamp) - new Date(b.timestamp)
-                                );
-                                const toDisplay = evenOlderMessages.slice(0, MESSAGES_PER_PAGE);
-                                
-                                const fragment = document.createDocumentFragment();
-                                toDisplay.forEach(msg => {
-                                    const element = createMessageElement(msg);
-                                    fragment.appendChild(element);
-                                    observeForRead(element, msg);
-                                });
-                                messages.insertBefore(fragment, messages.firstChild);
-                                
-                                showLoadMoreButton();
-                            }
-                        }
+                    // Take the oldest 50 messages
+                    const toDisplay = notDisplayed.slice(0, MESSAGES_PER_PAGE);
+                    console.log('Will display', toDisplay.length, 'oldest messages');
+                    
+                    // Insert at beginning
+                    const fragment = document.createDocumentFragment();
+                    toDisplay.forEach(msg => {
+                        const element = createMessageElement(msg);
+                        fragment.appendChild(element);
+                        observeForRead(element, msg);
+                    });
+                    messages.insertBefore(fragment, messages.firstChild);
+                    
+                    // Show button again if there are more
+                    if (notDisplayed.length > MESSAGES_PER_PAGE) {
+                        console.log('More messages available, showing button again');
+                        showLoadMoreButton();
+                    } else {
+                        console.log('No more messages to load');
                     }
+                } else {
+                    console.log('All messages are already displayed');
                 }
+            } else {
+                console.log('No full history available');
             }
         });
         
