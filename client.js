@@ -10,6 +10,7 @@ const socket = io({
 }); // Auto-connect with robust reconnection
 let currentUser = null;
 let pendingHistory = null;
+let fullHistory = null; // Store complete history for load more functionality
 let latestPresenceData = null;
 let presenceTickerId = null;
 let localOfflineStart = {};
@@ -505,20 +506,23 @@ function showLoadMoreButton() {
         loadMoreBtn.addEventListener('click', () => {
             loadMoreBtn.remove();
             
-            // Load and display older messages from pending history
-            if (pendingHistory) {
+            // Load and display older messages from full history
+            if (fullHistory) {
                 const firstMessage = messages.querySelector('li');
                 if (firstMessage) {
                     const firstMessageDate = new Date(firstMessage.dataset.timestamp);
                     
-                    // Find older messages
-                    const olderMessages = pendingHistory.filter(msg => 
-                        new Date(msg.timestamp) < firstMessageDate
+                    // Find older messages that aren't already displayed
+                    const olderMessages = fullHistory.filter(msg => 
+                        new Date(msg.timestamp) < firstMessageDate &&
+                        !document.querySelector(`li[data-id="${msg._id}"]`)
                     );
                     
                     // Sort and limit
                     olderMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                     const toDisplay = olderMessages.slice(0, MESSAGES_PER_PAGE);
+                    
+                    console.log(`Loading ${toDisplay.length} older messages`);
                     
                     if (toDisplay.length > 0) {
                         const fragment = document.createDocumentFragment();
@@ -652,9 +656,13 @@ socket.on('chat message', (msg) => {
 socket.on('history', (messagesHistory) => {
     if (!currentUser) {
         pendingHistory = messagesHistory;
+        fullHistory = messagesHistory; // Store full history
         console.log('History received but pending user selection:', messagesHistory.length, 'messages');
         return;
     }
+    
+    // Store full history for load more functionality
+    fullHistory = messagesHistory;
     lastActivityTs = Date.now();
     messagesHistory.sort((a, b) => {
         const ta = new Date(a.timestamp || 0).getTime();
@@ -805,6 +813,9 @@ socket.on('user selected', (success) => {
         if (pendingHistory && pendingHistory.length > 0) {
             console.log('Rendering pending history for user:', currentUser);
             
+            // Store full history
+            fullHistory = pendingHistory;
+            
             // Filter to last 2 days
             const twoDaysAgo = new Date();
             twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
@@ -824,7 +835,7 @@ socket.on('user selected', (success) => {
             pendingHistory = null; // Clear pending history
             
             // Show load more button if there are older messages
-            if (pendingHistory && pendingHistory.length > recentMessages.length) {
+            if (fullHistory && fullHistory.length > recentMessages.length) {
                 showLoadMoreButton();
             }
             
