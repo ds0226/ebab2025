@@ -395,6 +395,7 @@ async function loadMessages(before = null) {
     
     try {
         // Try the new API first
+        console.log('Trying API method...');
         const url = new URL('/api/messages', window.location.origin);
         if (before) {
             url.searchParams.append('before', before.getTime());
@@ -405,19 +406,22 @@ async function loadMessages(before = null) {
         if (response.ok) {
             const newMessages = await response.json();
             hasMoreMessages = newMessages.length === MESSAGES_PER_PAGE;
+            console.log('API method succeeded, loaded', newMessages.length, 'messages');
             return newMessages;
         }
     } catch (error) {
-        console.log('API not available, falling back to socket method');
+        console.log('API not available, falling back to socket method:', error.message);
     }
     
     // Fallback: Request all messages and filter client-side
+    console.log('Using socket fallback method...');
     return new Promise((resolve) => {
         socket.emit('get history');
         
         // Set up a one-time listener for the history
         const handleHistory = (messagesHistory) => {
             socket.off('history', handleHistory);
+            console.log('Received history from socket:', messagesHistory.length, 'messages');
             
             let filteredMessages = messagesHistory;
             
@@ -445,6 +449,7 @@ async function loadMessages(before = null) {
             const limitedMessages = filteredMessages.slice(0, MESSAGES_PER_PAGE);
             hasMoreMessages = limitedMessages.length === MESSAGES_PER_PAGE;
             
+            console.log('Returning', limitedMessages.length, 'filtered messages');
             resolve(limitedMessages);
         };
         
@@ -525,8 +530,10 @@ async function initChat() {
         // Clear existing messages
         messages.innerHTML = '';
         
+        console.log('Initializing chat, loading messages...');
         // Load initial messages (last 2 days)
         const initialMessages = await loadMessages();
+        console.log('Loaded initial messages:', initialMessages.length);
         
         if (initialMessages.length > 0) {
             const fragment = document.createDocumentFragment();
@@ -537,6 +544,7 @@ async function initChat() {
             });
             messages.appendChild(fragment);
             scrollToBottom();
+            console.log('Rendered', initialMessages.length, 'messages');
         }
         
         // Show "Load More" button if there are potentially more messages
