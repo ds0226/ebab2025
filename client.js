@@ -531,48 +531,35 @@ function showLoadMoreButton() {
                     const toDisplay = notDisplayed.slice(0, MESSAGES_PER_PAGE);
                     console.log('Will display', toDisplay.length, 'messages from older period');
                     
-                    // Insert messages at the beginning with proper date handling
-                    const fragment = document.createDocumentFragment();
-                    let lastDateKey = null;
+                    // Insert messages in proper order using a modified render approach
+                    // Sort oldest to newest for proper chronological display
+                    toDisplay.sort((a, b) => 
+                        new Date(a.timestamp) - new Date(b.timestamp)
+                    );
                     
+                    // Insert each message at the beginning (so oldest appears first)
                     toDisplay.forEach(msg => {
                         const ts = msg.timestamp || new Date().toISOString();
-                        const dateKey = getDateKey(ts);
                         
-                        // Add date separator if this is a different date than the previous message
-                        if (dateKey !== lastDateKey) {
+                        // Check if we need a date separator
+                        const dateKey = getDateKey(ts);
+                        const existingDateSep = messages.querySelector(`li.date-separator[data-date="${dateKey}"]`);
+                        
+                        if (!existingDateSep) {
                             const dateLi = document.createElement('li');
                             dateLi.className = 'date-separator';
                             dateLi.dataset.date = dateKey;
                             dateLi.textContent = getDateLabel(ts);
-                            fragment.appendChild(dateLi);
-                            lastDateKey = dateKey;
+                            messages.insertBefore(dateLi, messages.firstChild);
                         }
                         
-                        // Create message element
+                        // Create and insert message at the beginning
                         const element = createMessageElement(msg);
-                        fragment.appendChild(element);
+                        messages.insertBefore(element, messages.firstChild);
                         
                         // Set up read observer
                         observeForRead(element, msg);
                     });
-                    
-                    // Check if there's an existing date separator at the beginning
-                    const firstExistingChild = messages.firstChild;
-                    if (firstExistingChild && firstExistingChild.classList.contains('date-separator')) {
-                        // Remove duplicate date separator if it matches our last date
-                        if (lastDateKey && firstExistingChild.dataset.date === lastDateKey) {
-                            messages.removeChild(firstExistingChild);
-                        }
-                    }
-                    
-                    // Insert at the beginning (before any existing messages)
-                    const firstChild = messages.firstChild;
-                    if (firstChild) {
-                        messages.insertBefore(fragment, firstChild);
-                    } else {
-                        messages.appendChild(fragment);
-                    }
                     
                     // Show button again if there are more
                     if (notDisplayed.length > MESSAGES_PER_PAGE) {
