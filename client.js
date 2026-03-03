@@ -490,7 +490,7 @@ function showLoadMoreButton() {
     if (!loadMoreBtn) {
         loadMoreBtn = document.createElement('button');
         loadMoreBtn.id = 'load-more-btn';
-        loadMoreBtn.textContent = 'Load Older Messages';
+        loadMoreBtn.textContent = 'Load Previous Day';
         loadMoreBtn.style.cssText = `
             display: block;
             margin: 10px auto;
@@ -522,14 +522,54 @@ function showLoadMoreButton() {
                 console.log('Messages not displayed:', notDisplayed.length);
                 
                 if (notDisplayed.length > 0) {
-                    // Sort by date (newest first) so when we insert at beginning, oldest appears first
-                    notDisplayed.sort((a, b) => 
-                        new Date(b.timestamp) - new Date(a.timestamp)
-                    );
+                    // Get the oldest currently displayed message to determine the day boundary
+                    const displayedMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
+                    let targetDate = null;
                     
-                    // Take the newest 50 messages from the older ones
-                    const toDisplay = notDisplayed.slice(0, MESSAGES_PER_PAGE);
-                    console.log('Will display', toDisplay.length, 'messages from older period');
+                    if (displayedMessages.length > 0) {
+                        const oldestDisplayedId = displayedMessages[0].dataset.id;
+                        const oldestDisplayedMsg = fullHistory.find(msg => msg._id === oldestDisplayedId);
+                        if (oldestDisplayedMsg) {
+                            targetDate = new Date(oldestDisplayedMsg.timestamp);
+                            targetDate.setHours(0, 0, 0, 0); // Start of that day
+                        }
+                    }
+                    
+                    // If no displayed messages, get the newest message and go back one day
+                    if (!targetDate && fullHistory.length > 0) {
+                        const newestMsg = fullHistory.reduce((newest, msg) => 
+                            new Date(msg.timestamp) > new Date(newest.timestamp) ? msg : newest
+                        );
+                        targetDate = new Date(newestMsg.timestamp);
+                        targetDate.setDate(targetDate.getDate() - 1); // Go back one day
+                        targetDate.setHours(0, 0, 0, 0);
+                    }
+                    
+                    // Find all messages from the target day
+                    const nextDay = new Date(targetDate);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    
+                    const dayMessages = notDisplayed.filter(msg => {
+                        const msgDate = new Date(msg.timestamp);
+                        return msgDate >= targetDate && msgDate < nextDay;
+                    });
+                    
+                    // If no messages from that day, try the previous day
+                    let toDisplay = dayMessages;
+                    let searchDate = new Date(targetDate);
+                    
+                    while (toDisplay.length === 0 && searchDate >= new Date(0)) {
+                        searchDate.setDate(searchDate.getDate() - 1);
+                        const searchNextDay = new Date(searchDate);
+                        searchNextDay.setDate(searchNextDay.getDate() + 1);
+                        
+                        toDisplay = notDisplayed.filter(msg => {
+                            const msgDate = new Date(msg.timestamp);
+                            return msgDate >= searchDate && msgDate < searchNextDay;
+                        });
+                    }
+                    
+                    console.log('Will display', toDisplay.length, 'messages from', searchDate.toDateString());
                     
                     // Rebuild the entire message list with proper chronological order
                     // Get all currently displayed messages
@@ -578,12 +618,16 @@ function showLoadMoreButton() {
                     // Scroll to bottom to maintain position
                     scrollToBottom();
                     
-                    // Show button again if there are more
-                    if (notDisplayed.length > MESSAGES_PER_PAGE) {
-                        console.log('More messages available, showing button again');
+                    // Check if there are more days available
+                    const remainingMessages = notDisplayed.filter(msg => 
+                        !toDisplay.some(displayedMsg => displayedMsg._id === msg._id)
+                    );
+                    
+                    if (remainingMessages.length > 0) {
+                        console.log('More days available, showing button again');
                         showLoadMoreButton();
                     } else {
-                        console.log('No more messages to load');
+                        console.log('No more days to load');
                     }
                 } else {
                     console.log('All messages are already displayed');
