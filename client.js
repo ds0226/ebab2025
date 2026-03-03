@@ -531,9 +531,12 @@ function showLoadMoreButton() {
                     const toDisplay = notDisplayed.slice(0, MESSAGES_PER_PAGE);
                     console.log('Will display', toDisplay.length, 'oldest messages');
                     
-                    // Insert at beginning
+                    // Insert at beginning - process in reverse order for proper date stamping
                     const fragment = document.createDocumentFragment();
-                    toDisplay.forEach(msg => {
+                    toDisplay.slice().reverse().forEach(msg => {
+                        // Ensure date stamp is created for each message
+                        const ts = msg.timestamp || new Date().toISOString();
+                        ensureDateStamp(ts);
                         const element = createMessageElement(msg);
                         fragment.appendChild(element);
                         observeForRead(element, msg);
