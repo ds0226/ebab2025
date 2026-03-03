@@ -423,11 +423,52 @@ function showLoadingIndicator(show) {
         loader.textContent = 'Loading...';
         loader.style.padding = '10px';
         loader.style.textAlign = 'center';
-        loader.style.color = '#666';
+        loader.style.color = '#8696a0';
         loader.style.fontStyle = 'italic';
+        loader.style.fontSize = '0.85rem';
         messages.insertBefore(loader, messages.firstChild);
     } else if (!show && loader) {
         loader.remove();
+    }
+}
+
+function showLoadMoreButton() {
+    let loadMoreBtn = document.getElementById('load-more-btn');
+    if (!loadMoreBtn && hasMoreMessages) {
+        loadMoreBtn = document.createElement('button');
+        loadMoreBtn.id = 'load-more-btn';
+        loadMoreBtn.textContent = 'Load Older Messages';
+        loadMoreBtn.style.cssText = `
+            display: block;
+            margin: 10px auto;
+            padding: 8px 16px;
+            background-color: #2a3942;
+            color: #e9edef;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background-color 0.2s;
+        `;
+        loadMoreBtn.addEventListener('click', async () => {
+            loadMoreBtn.remove();
+            const firstMessage = messages.querySelector('li');
+            if (firstMessage) {
+                const firstMessageDate = new Date(firstMessage.dataset.timestamp);
+                const newMessages = await loadMessages(firstMessageDate);
+                if (newMessages.length > 0) {
+                    const fragment = document.createDocumentFragment();
+                    newMessages.reverse().forEach(msg => {
+                        const element = createMessageElement(msg);
+                        fragment.appendChild(element);
+                        observeForRead(element, msg);
+                    });
+                    messages.insertBefore(fragment, messages.firstChild);
+                    showLoadMoreButton();
+                }
+            }
+        });
+        messages.insertBefore(loadMoreBtn, messages.firstChild);
     }
 }
 
@@ -451,6 +492,11 @@ async function initChat() {
             scrollToBottom();
         }
         
+        // Show "Load More" button if there are potentially more messages
+        if (initialMessages.length === MESSAGES_PER_PAGE) {
+            showLoadMoreButton();
+        }
+        
         // Initialize infinite scroll
         initInfiniteScroll();
     } catch (error) {
@@ -460,36 +506,48 @@ async function initChat() {
 
 // Initialize infinite scroll
 function initInfiniteScroll() {
-    let lastScrollTop = 0;
-    
     messages.addEventListener('scroll', async () => {
         const scrollTop = messages.scrollTop;
         
-        // Only load more if we're near the top and not already loading
-        if (scrollTop < 100 && scrollTop < lastScrollTop && !isLoading && hasMoreMessages) {
+        // Load more when user scrolls near the top (within 200px)
+        if (scrollTop < 200 && !isLoading && hasMoreMessages) {
             const firstMessage = messages.querySelector('li');
             if (!firstMessage) return;
             
             const firstMessageDate = new Date(firstMessage.dataset.timestamp);
+            console.log('Loading older messages before:', firstMessageDate);
             const newMessages = await loadMessages(firstMessageDate);
             
             if (newMessages.length > 0) {
+                console.log('Loaded', newMessages.length, 'older messages');
                 const fragment = document.createDocumentFragment();
+                
+                // Add messages in reverse order (oldest first)
                 newMessages.reverse().forEach(msg => {
                     const element = createMessageElement(msg);
-                    fragment.insertBefore(element, messages.firstChild);
+                    fragment.appendChild(element);
                     observeForRead(element, msg);
                 });
                 
-                // Maintain scroll position
+                // Store current scroll position
                 const oldScrollHeight = messages.scrollHeight;
+                const oldScrollTop = messages.scrollTop;
+                
+                // Insert new messages at the beginning
                 messages.insertBefore(fragment, messages.firstChild);
+                
+                // Adjust scroll to maintain position
                 const newScrollHeight = messages.scrollHeight;
-                messages.scrollTop = newScrollHeight - oldScrollHeight + scrollTop;
+                messages.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+                
+                // Show "Load more" button if there are more messages
+                if (newMessages.length < MESSAGES_PER_PAGE) {
+                    hasMoreMessages = false;
+                }
+            } else {
+                hasMoreMessages = false;
             }
         }
-        
-        lastScrollTop = scrollTop;
     });
 }
 
