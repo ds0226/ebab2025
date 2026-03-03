@@ -486,7 +486,7 @@ function showLoadingIndicator(show) {
 
 function showLoadMoreButton() {
     let loadMoreBtn = document.getElementById('load-more-btn');
-    if (!loadMoreBtn && hasMoreMessages) {
+    if (!loadMoreBtn) {
         loadMoreBtn = document.createElement('button');
         loadMoreBtn.id = 'load-more-btn';
         loadMoreBtn.textContent = 'Load Older Messages';
@@ -502,21 +502,38 @@ function showLoadMoreButton() {
             font-size: 0.85rem;
             transition: background-color 0.2s;
         `;
-        loadMoreBtn.addEventListener('click', async () => {
+        loadMoreBtn.addEventListener('click', () => {
             loadMoreBtn.remove();
-            const firstMessage = messages.querySelector('li');
-            if (firstMessage) {
-                const firstMessageDate = new Date(firstMessage.dataset.timestamp);
-                const newMessages = await loadMessages(firstMessageDate);
-                if (newMessages.length > 0) {
-                    const fragment = document.createDocumentFragment();
-                    newMessages.reverse().forEach(msg => {
-                        const element = createMessageElement(msg);
-                        fragment.appendChild(element);
-                        observeForRead(element, msg);
-                    });
-                    messages.insertBefore(fragment, messages.firstChild);
-                    showLoadMoreButton();
+            
+            // Load and display older messages from pending history
+            if (pendingHistory) {
+                const firstMessage = messages.querySelector('li');
+                if (firstMessage) {
+                    const firstMessageDate = new Date(firstMessage.dataset.timestamp);
+                    
+                    // Find older messages
+                    const olderMessages = pendingHistory.filter(msg => 
+                        new Date(msg.timestamp) < firstMessageDate
+                    );
+                    
+                    // Sort and limit
+                    olderMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    const toDisplay = olderMessages.slice(0, MESSAGES_PER_PAGE);
+                    
+                    if (toDisplay.length > 0) {
+                        const fragment = document.createDocumentFragment();
+                        toDisplay.reverse().forEach(msg => {
+                            const element = createMessageElement(msg);
+                            fragment.appendChild(element);
+                            observeForRead(element, msg);
+                        });
+                        messages.insertBefore(fragment, messages.firstChild);
+                        
+                        // Show button again if there are more older messages
+                        if (olderMessages.length > MESSAGES_PER_PAGE) {
+                            showLoadMoreButton();
+                        }
+                    }
                 }
             }
         });
@@ -632,15 +649,52 @@ socket.on('chat message', (msg) => {
     }
 });
 
-// History event listener for fallback method - only used for pending history
 socket.on('history', (messagesHistory) => {
     if (!currentUser) {
         pendingHistory = messagesHistory;
         console.log('History received but pending user selection:', messagesHistory.length, 'messages');
         return;
     }
-    // Don't render here - let loadMessages handle filtering and rendering
-    console.log('History event received, but loadMessages will handle rendering');
+    lastActivityTs = Date.now();
+    messagesHistory.sort((a, b) => {
+        const ta = new Date(a.timestamp || 0).getTime();
+        const tb = new Date(b.timestamp || 0).getTime();
+        return ta - tb;
+    });
+    
+    // Filter to last 2 days for initial display
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const recentMessages = messagesHistory.filter(msg => 
+        new Date(msg.timestamp) >= twoDaysAgo
+    );
+    
+    console.log(`Displaying ${recentMessages.length} messages from last 2 days (total: ${messagesHistory.length})`);
+    
+    const deliverIds = [];
+    recentMessages.forEach(msg => {
+        if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
+            renderMessage(msg);
+        }
+        const isIncoming = (msg.senderID || msg.sender) !== currentUser;
+        if (isIncoming && msg.status === 'sent' && msg._id) {
+            deliverIds.push(msg._id);
+        }
+    });
+    
+    // Show load more button if there are older messages
+    if (messagesHistory.length > recentMessages.length) {
+        showLoadMoreButton();
+    }
+    
+    forceScrollToBottom();
+    if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        if (deliverIds.length > 0) {
+            socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
+        }
+        socket.emit('mark conversation read', { readerID: currentUser });
+    }
 });
 
 // --- Real-time Status Update Listener (NEW) ---
@@ -734,7 +788,7 @@ function selectUser(userId) {
     socket.emit('select user', userId);
 }
 
-socket.on('user selected', async (success) => {
+socket.on('user selected', (success) => {
     if (success) {
         selectionScreen.style.display = 'none';
         chatContainer.style.display = 'flex';
@@ -745,9 +799,37 @@ socket.on('user selected', async (success) => {
         otherUserName.textContent = otherUser.toUpperCase();
         setStoredSelectedUser(currentUser);
         
-        // Initialize chat with messages
-        await initChat();
         input.focus();
+
+        // Render pending history now that we know who the current user is
+        if (pendingHistory && pendingHistory.length > 0) {
+            console.log('Rendering pending history for user:', currentUser);
+            
+            // Filter to last 2 days
+            const twoDaysAgo = new Date();
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+            const recentMessages = pendingHistory.filter(msg => 
+                new Date(msg.timestamp) >= twoDaysAgo
+            );
+            
+            console.log(`Showing ${recentMessages.length} messages from last 2 days (total: ${pendingHistory.length})`);
+            
+            recentMessages.sort((a, b) => {
+                const ta = new Date(a.timestamp || 0).getTime();
+                const tb = new Date(b.timestamp || 0).getTime();
+                return ta - tb;
+            });
+            
+            recentMessages.forEach(renderMessage);
+            pendingHistory = null; // Clear pending history
+            
+            // Show load more button if there are older messages
+            if (pendingHistory && pendingHistory.length > recentMessages.length) {
+                showLoadMoreButton();
+            }
+            
+            forceScrollToBottom();
+        }
 
         // Request latest presence data
         socket.emit('get presence update');
