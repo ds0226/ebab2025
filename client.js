@@ -533,10 +533,21 @@ function showLoadMoreButton() {
                     
                     // Insert messages at the beginning with proper date handling
                     const fragment = document.createDocumentFragment();
+                    let lastDateKey = null;
+                    
                     toDisplay.forEach(msg => {
-                        // Create date stamp if needed
                         const ts = msg.timestamp || new Date().toISOString();
-                        ensureDateStamp(ts);
+                        const dateKey = getDateKey(ts);
+                        
+                        // Add date separator if this is a different date than the previous message
+                        if (dateKey !== lastDateKey) {
+                            const dateLi = document.createElement('li');
+                            dateLi.className = 'date-separator';
+                            dateLi.dataset.date = dateKey;
+                            dateLi.textContent = getDateLabel(ts);
+                            fragment.appendChild(dateLi);
+                            lastDateKey = dateKey;
+                        }
                         
                         // Create message element
                         const element = createMessageElement(msg);
