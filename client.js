@@ -531,17 +531,28 @@ function showLoadMoreButton() {
                     const toDisplay = notDisplayed.slice(0, MESSAGES_PER_PAGE);
                     console.log('Will display', toDisplay.length, 'oldest messages');
                     
-                    // Insert at beginning - process in reverse order for proper date stamping
+                    // Insert messages at the beginning with proper date handling
                     const fragment = document.createDocumentFragment();
-                    toDisplay.slice().reverse().forEach(msg => {
-                        // Ensure date stamp is created for each message
+                    toDisplay.forEach(msg => {
+                        // Create date stamp if needed
                         const ts = msg.timestamp || new Date().toISOString();
                         ensureDateStamp(ts);
+                        
+                        // Create message element
                         const element = createMessageElement(msg);
                         fragment.appendChild(element);
+                        
+                        // Set up read observer
                         observeForRead(element, msg);
                     });
-                    messages.insertBefore(fragment, messages.firstChild);
+                    
+                    // Insert at the beginning (before any existing messages)
+                    const firstChild = messages.firstChild;
+                    if (firstChild) {
+                        messages.insertBefore(fragment, firstChild);
+                    } else {
+                        messages.appendChild(fragment);
+                    }
                     
                     // Show button again if there are more
                     if (notDisplayed.length > MESSAGES_PER_PAGE) {
