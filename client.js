@@ -394,6 +394,7 @@ async function loadMessages(before = null) {
     showLoadingIndicator(true);
     
     try {
+        // Try the new API first
         const url = new URL('/api/messages', window.location.origin);
         if (before) {
             url.searchParams.append('before', before.getTime());
@@ -401,18 +402,63 @@ async function loadMessages(before = null) {
         url.searchParams.append('limit', MESSAGES_PER_PAGE);
         
         const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to load messages');
-        
-        const newMessages = await response.json();
-        hasMoreMessages = newMessages.length === MESSAGES_PER_PAGE;
-        return newMessages;
+        if (response.ok) {
+            const newMessages = await response.json();
+            hasMoreMessages = newMessages.length === MESSAGES_PER_PAGE;
+            return newMessages;
+        }
     } catch (error) {
-        console.error('Error loading messages:', error);
-        return [];
-    } finally {
+        console.log('API not available, falling back to socket method');
+    }
+    
+    // Fallback: Request all messages and filter client-side
+    return new Promise((resolve) => {
+        socket.emit('get history');
+        
+        // Set up a one-time listener for the history
+        const handleHistory = (messagesHistory) => {
+            socket.off('history', handleHistory);
+            
+            let filteredMessages = messagesHistory;
+            
+            // If before date is provided, filter messages before that date
+            if (before) {
+                filteredMessages = messagesHistory.filter(msg => 
+                    new Date(msg.timestamp) < before
+                );
+            } else {
+                // Default: only get messages from the last 2 days
+                const twoDaysAgo = new Date();
+                twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+                filteredMessages = messagesHistory.filter(msg => 
+                    new Date(msg.timestamp) >= twoDaysAgo
+                );
+            }
+            
+            // Sort by timestamp descending (newest first)
+            filteredMessages.sort((a, b) => 
+                new Date(b.timestamp) - new Date(a.timestamp)
+            );
+            
+            // Apply limit
+            const limitedMessages = filteredMessages.slice(0, MESSAGES_PER_PAGE);
+            hasMoreMessages = limitedMessages.length === MESSAGES_PER_PAGE;
+            
+            resolve(limitedMessages);
+        };
+        
+        socket.on('history', handleHistory);
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+            socket.off('history', handleHistory);
+            console.error('History request timed out');
+            resolve([]);
+        }, 5000);
+    }).finally(() => {
         isLoading = false;
         showLoadingIndicator(false);
-    }
+    });
 }
 
 function showLoadingIndicator(show) {
@@ -577,7 +623,38 @@ socket.on('chat message', (msg) => {
     }
 });
 
-// Old history event listener removed - now using API-based loading with infinite scroll
+// History event listener for fallback method
+socket.on('history', (messagesHistory) => {
+    if (!currentUser) {
+        pendingHistory = messagesHistory;
+        console.log('History received but pending user selection:', messagesHistory.length, 'messages');
+        return;
+    }
+    lastActivityTs = Date.now();
+    messagesHistory.sort((a, b) => {
+        const ta = new Date(a.timestamp || 0).getTime();
+        const tb = new Date(b.timestamp || 0).getTime();
+        return ta - tb;
+    });
+    const deliverIds = [];
+    messagesHistory.forEach(msg => {
+        if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
+            renderMessage(msg);
+        }
+        const isIncoming = (msg.senderID || msg.sender) !== currentUser;
+        if (isIncoming && msg.status === 'sent' && msg._id) {
+            deliverIds.push(msg._id);
+        }
+    });
+    forceScrollToBottom();
+    if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        if (deliverIds.length > 0) {
+            socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
+        }
+        socket.emit('mark conversation read', { readerID: currentUser });
+    }
+});
 
 // --- Real-time Status Update Listener (NEW) ---
 socket.on('message status update', (data) => {
@@ -684,6 +761,9 @@ socket.on('user selected', async (success) => {
         // Initialize chat with messages
         await initChat();
         input.focus();
+
+        // Request history from server
+        socket.emit('get history');
 
         // Request latest presence data
         socket.emit('get presence update');
