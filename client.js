@@ -486,8 +486,10 @@ function showLoadingIndicator(show) {
 }
 
 function showLoadMoreButton() {
+    console.log('showLoadMoreButton called');
     let loadMoreBtn = document.getElementById('load-more-btn');
     if (!loadMoreBtn) {
+        console.log('Creating load more button');
         loadMoreBtn = document.createElement('button');
         loadMoreBtn.id = 'load-more-btn';
         loadMoreBtn.textContent = 'Load Older Messages';
@@ -503,20 +505,29 @@ function showLoadMoreButton() {
             font-size: 0.85rem;
             transition: background-color 0.2s;
         `;
+        console.log('Load more button created and styled');
         loadMoreBtn.addEventListener('click', () => {
+            console.log('Load more button clicked');
             loadMoreBtn.remove();
             
             // Load and display older messages from full history
             if (fullHistory) {
+                console.log('Full history available:', fullHistory.length, 'messages');
+                
                 const firstMessage = messages.querySelector('li');
                 if (firstMessage) {
                     const firstMessageDate = new Date(firstMessage.dataset.timestamp);
+                    console.log('First message date:', firstMessageDate);
                     
                     // Find older messages that aren't already displayed
-                    const olderMessages = fullHistory.filter(msg => 
-                        new Date(msg.timestamp) < firstMessageDate &&
-                        !document.querySelector(`li[data-id="${msg._id}"]`)
-                    );
+                    const olderMessages = fullHistory.filter(msg => {
+                        const msgDate = new Date(msg.timestamp);
+                        const isOlder = msgDate < firstMessageDate;
+                        const notDisplayed = !document.querySelector(`li[data-id="${msg._id}"]`);
+                        return isOlder && notDisplayed;
+                    });
+                    
+                    console.log('Found older messages:', olderMessages.length);
                     
                     // Sort and limit
                     olderMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -535,10 +546,19 @@ function showLoadMoreButton() {
                         
                         // Show button again if there are more older messages
                         if (olderMessages.length > MESSAGES_PER_PAGE) {
+                            console.log('More messages available, showing button again');
                             showLoadMoreButton();
+                        } else {
+                            console.log('No more older messages to load');
                         }
+                    } else {
+                        console.log('No older messages found to display');
                     }
+                } else {
+                    console.log('No first message found');
                 }
+            } else {
+                console.log('No full history available');
             }
         });
         messages.insertBefore(loadMoreBtn, messages.firstChild);
@@ -663,6 +683,7 @@ socket.on('history', (messagesHistory) => {
     
     // Store full history for load more functionality
     fullHistory = messagesHistory;
+    console.log('Stored fullHistory:', fullHistory.length, 'messages');
     lastActivityTs = Date.now();
     messagesHistory.sort((a, b) => {
         const ta = new Date(a.timestamp || 0).getTime();
