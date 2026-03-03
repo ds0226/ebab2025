@@ -557,6 +557,15 @@ function showLoadMoreButton() {
                         observeForRead(element, msg);
                     });
                     
+                    // Check if there's an existing date separator at the beginning
+                    const firstExistingChild = messages.firstChild;
+                    if (firstExistingChild && firstExistingChild.classList.contains('date-separator')) {
+                        // Remove duplicate date separator if it matches our last date
+                        if (lastDateKey && firstExistingChild.dataset.date === lastDateKey) {
+                            messages.removeChild(firstExistingChild);
+                        }
+                    }
+                    
                     // Insert at the beginning (before any existing messages)
                     const firstChild = messages.firstChild;
                     if (firstChild) {
