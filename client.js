@@ -531,17 +531,31 @@ function showLoadMoreButton() {
                     const toDisplay = notDisplayed.slice(0, MESSAGES_PER_PAGE);
                     console.log('Will display', toDisplay.length, 'messages from older period');
                     
-                    // Insert messages in proper order using a modified render approach
-                    // Sort oldest to newest for proper chronological display
-                    toDisplay.sort((a, b) => 
+                    // Rebuild the entire message list with proper chronological order
+                    // Get all currently displayed messages
+                    const currentMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'))
+                        .map(li => {
+                            const msgId = li.dataset.id;
+                            return fullHistory.find(msg => msg._id === msgId);
+                        })
+                        .filter(msg => msg);
+                    
+                    // Combine with new messages
+                    const allMessages = [...toDisplay, ...currentMessages];
+                    
+                    // Sort all messages by date (oldest to newest)
+                    allMessages.sort((a, b) => 
                         new Date(a.timestamp) - new Date(b.timestamp)
                     );
                     
-                    // Insert each message at the beginning (so oldest appears first)
-                    toDisplay.forEach(msg => {
+                    // Clear and rebuild the entire message list
+                    messages.innerHTML = '';
+                    
+                    // Render all messages in proper order
+                    allMessages.forEach(msg => {
                         const ts = msg.timestamp || new Date().toISOString();
                         
-                        // Check if we need a date separator
+                        // Add date separator if needed
                         const dateKey = getDateKey(ts);
                         const existingDateSep = messages.querySelector(`li.date-separator[data-date="${dateKey}"]`);
                         
@@ -550,16 +564,19 @@ function showLoadMoreButton() {
                             dateLi.className = 'date-separator';
                             dateLi.dataset.date = dateKey;
                             dateLi.textContent = getDateLabel(ts);
-                            messages.insertBefore(dateLi, messages.firstChild);
+                            messages.appendChild(dateLi);
                         }
                         
-                        // Create and insert message at the beginning
+                        // Create and append message
                         const element = createMessageElement(msg);
-                        messages.insertBefore(element, messages.firstChild);
+                        messages.appendChild(element);
                         
                         // Set up read observer
                         observeForRead(element, msg);
                     });
+                    
+                    // Scroll to bottom to maintain position
+                    scrollToBottom();
                     
                     // Show button again if there are more
                     if (notDisplayed.length > MESSAGES_PER_PAGE) {
