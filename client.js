@@ -433,6 +433,7 @@ async function loadMessages(before = null) {
                 filteredMessages = messagesHistory.filter(msg => 
                     new Date(msg.timestamp) >= twoDaysAgo
                 );
+                console.log(`Filtered to last 2 days: ${filteredMessages.length} messages from ${messagesHistory.length} total`);
             }
             
             // Sort by timestamp descending (newest first)
@@ -623,37 +624,15 @@ socket.on('chat message', (msg) => {
     }
 });
 
-// History event listener for fallback method
+// History event listener for fallback method - only used for pending history
 socket.on('history', (messagesHistory) => {
     if (!currentUser) {
         pendingHistory = messagesHistory;
         console.log('History received but pending user selection:', messagesHistory.length, 'messages');
         return;
     }
-    lastActivityTs = Date.now();
-    messagesHistory.sort((a, b) => {
-        const ta = new Date(a.timestamp || 0).getTime();
-        const tb = new Date(b.timestamp || 0).getTime();
-        return ta - tb;
-    });
-    const deliverIds = [];
-    messagesHistory.forEach(msg => {
-        if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
-            renderMessage(msg);
-        }
-        const isIncoming = (msg.senderID || msg.sender) !== currentUser;
-        if (isIncoming && msg.status === 'sent' && msg._id) {
-            deliverIds.push(msg._id);
-        }
-    });
-    forceScrollToBottom();
-    if (currentUser) {
-        const otherUser = currentUser === 'i' ? 'x' : 'i';
-        if (deliverIds.length > 0) {
-            socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
-        }
-        socket.emit('mark conversation read', { readerID: currentUser });
-    }
+    // Don't render here - let loadMessages handle filtering and rendering
+    console.log('History event received, but loadMessages will handle rendering');
 });
 
 // --- Real-time Status Update Listener (NEW) ---
@@ -761,9 +740,6 @@ socket.on('user selected', async (success) => {
         // Initialize chat with messages
         await initChat();
         input.focus();
-
-        // Request history from server
-        socket.emit('get history');
 
         // Request latest presence data
         socket.emit('get presence update');
