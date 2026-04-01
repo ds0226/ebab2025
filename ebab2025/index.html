@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EBAB 2025 Chat</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="chat-container">
+        <header class="chat-header">
+            <h1>EBAB 2025 Chat</h1>
+            <div class="user-info">
+                <span id="current-user"></span>
+                <button id="logout-btn" style="display: none;">Logout</button>
+            </div>
+        </header>
+
+        <div class="login-container" id="login-container">
+            <div class="login-form">
+                <h2>Enter Your Name</h2>
+                <input type="text" id="username-input" placeholder="Your name" maxlength="50">
+                <button id="login-btn">Join Chat</button>
+            </div>
+        </div>
+
+        <div class="chat-main" id="chat-main" style="display: none;">
+            <div class="messages-container">
+                <div id="messages"></div>
+                <div id="load-more-container" style="display: none;">
+                    <button id="load-more-btn">Load More Messages</button>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <form id="message-form">
+                    <input type="text" id="message-input" placeholder="Type a message..." maxlength="1000">
+                    <input type="file" id="file-input" accept="image/*,video/*,.pdf" style="display: none;">
+                    <button type="button" id="file-btn">📎</button>
+                    <button type="submit">Send</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="presence-indicator" id="presence-indicator">
+            <span id="presence-text"></span>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/client.js"></script>
+</body>
+</html>
