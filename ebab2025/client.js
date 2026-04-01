@@ -449,13 +449,9 @@ async function loadMessages(before = null) {
                     new Date(msg.timestamp) < before
                 );
             } else {
-                // Default: only get messages from the last 2 days
-                const twoDaysAgo = new Date();
-                twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-                filteredMessages = messagesHistory.filter(msg => 
-                    new Date(msg.timestamp) >= twoDaysAgo
-                );
-                console.log(`Filtered to last 2 days: ${filteredMessages.length} messages from ${messagesHistory.length} total`);
+                // Load all messages (no time filter)
+                filteredMessages = messagesHistory;
+                console.log(`Loading all messages: ${filteredMessages.length} messages from ${messagesHistory.length} total`);
             }
             
             // Sort by timestamp descending (newest first)
