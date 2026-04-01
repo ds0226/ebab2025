@@ -1,6 +1,3 @@
-// Fixed Load Previous Day button logic
-// This fixes the issue where button shows even when database is empty
-
 // client.js - Handles all client-side logic, including file upload and real-time read receipts.
 
 const socket = io({
@@ -29,25 +26,1201 @@ let isLoading = false;
 let hasMoreMessages = true;
 const MESSAGES_PER_PAGE = 50;
 
-// FIND this code around line 982:
-if (fullHistory && fullHistory.length > 0 && fullHistory.length > recentMessages.length) {
-    console.log('Calling showLoadMoreButton - fullHistory has', fullHistory.length, 'vs recent', recentMessages.length);
-    showLoadMoreButton();
-} else {
-    console.log('Not showing load more button -', fullHistory ? 'no history loaded' : 'All messages are recent');
+function getStoredOfflineStart(uid) {
+    try {
+        return localStorage.getItem(OFFLINE_KEY_PREFIX + uid);
+    } catch (_) {
+        return null;
+    }
 }
 
-// Also FIND this code around line 838:
+function setStoredOfflineStart(uid, ts) {
+    try {
+        localStorage.setItem(OFFLINE_KEY_PREFIX + uid, ts);
+    } catch (_) {}
+}
 
-// REPLACE with:
-if (messagesHistory && messagesHistory.length > 0 && messagesHistory.length > recentMessages.length) {
-    showLoadMoreButton();
+function clearStoredOfflineStart(uid) {
+    try {
+        localStorage.removeItem(OFFLINE_KEY_PREFIX + uid);
+    } catch (_) {}
+}
+
+// --- DOM Elements ---
+const messages = document.getElementById('messages');
+
+// --- Debug Commands (for troubleshooting user selection issues) ---
+// Add these to browser console when needed:
+window.forceReleaseUser = (userId) => {
+    socket.emit('force release user', userId);
+    console.log(`Attempting to force release user ${userId}`);
+};
+
+window.cleanupStaleUsers = () => {
+    socket.emit('cleanup stale users');
+    console.log('Requesting cleanup of stale users');
+};
+
+// Auto-cleanup stale users on page load
+setTimeout(() => {
+    socket.emit('cleanup stale users');
+}, 1000);
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const sendButton = document.getElementById('send-button');
+const selectionScreen = document.getElementById('initial-user-selection');
+const chatContainer = document.getElementById('chat-container');
+const currentUserDisplay = document.getElementById('my-user-id-display');
+const otherUserStatus = document.getElementById('other-user-status');
+const otherUserName = document.getElementById('other-user-name');
+const photoInput = document.getElementById('photo-input');
+const photoButton = document.getElementById('photo-button');
+let typingTimeout = null;
+let lastInputHeightPx = null;
+
+
+// --- Utility Functions ---
+
+function getCurrentTime() {
+    return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function getClockTime(timestamp) {
+    const d = timestamp ? new Date(timestamp) : new Date();
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function getDateKey(timestamp) {
+    const d = timestamp ? new Date(timestamp) : new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function getDateLabel(timestamp) {
+    const d = timestamp ? new Date(timestamp) : new Date();
+    const now = new Date();
+    const todayKey = getDateKey(now.toISOString());
+    const yest = new Date(now);
+    yest.setDate(now.getDate() - 1);
+    const yesterdayKey = getDateKey(yest.toISOString());
+    const key = getDateKey(d.toISOString());
+    
+    if (key === todayKey) return 'Today';
+    if (key === yesterdayKey) return 'Yesterday';
+    
+    // For messages within the last 6 days, show day name
+    const sixDaysAgo = new Date(now);
+    sixDaysAgo.setDate(now.getDate() - 6);
+    
+    if (d > sixDaysAgo) {
+        return d.toLocaleDateString(undefined, { weekday: 'long' });
+    }
+    
+    // For older messages, show full date (MM/DD/YYYY format)
+    return d.toLocaleDateString(undefined, { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit' 
+    });
+}
+
+function ensureDateStamp(timestamp) {
+    const key = getDateKey(timestamp);
+    if (!messages.querySelector(`li.date-separator[data-date="${key}"]`)) {
+        const li = document.createElement('li');
+        li.className = 'date-separator';
+        li.dataset.date = key;
+        li.textContent = getDateLabel(timestamp);
+        messages.appendChild(li);
+    }
 }
 
 function scrollToBottom() {
-    messages.scrollTop = messages.scrollHeight;
+    const threshold = 80;
+    const distance = messages.scrollHeight - messages.scrollTop - messages.clientHeight;
+    if (distance < threshold) {
+        messages.scrollTop = messages.scrollHeight;
+    }
 }
 
 function forceScrollToBottom() {
     messages.scrollTop = messages.scrollHeight;
+}
+
+function updateStatusUI(id, status) {
+    const listItem = document.querySelector(`li[data-id="${String(id)}"]`);
+    if (!listItem) return;
+    const statusSpan = listItem.querySelector('.message-time .status-sent, .message-time .status-delivered, .message-time .status-read');
+    if (!statusSpan) return;
+    statusSpan.classList.remove('status-sent');
+    statusSpan.classList.remove('status-delivered');
+    statusSpan.classList.remove('status-read');
+    if (status === 'read') {
+        statusSpan.classList.add('status-read');
+        statusSpan.innerHTML = '\u2713\u2713';
+    } else if (status === 'delivered') {
+        statusSpan.classList.add('status-delivered');
+        statusSpan.innerHTML = '\u2713\u2713';
+    } else {
+        statusSpan.classList.add('status-sent');
+        statusSpan.innerHTML = '\u2713';
+    }
+}
+
+function getTimeAgo(timestamp) {
+    if (!timestamp) return null;
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now - past;
+    const diffSeconds = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffSeconds < 30) return 'just now';
+    if (diffSeconds < 60) return 'less than a minute ago';
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+}
+
+function getOfflineDuration(timestamp) {
+    if (!timestamp) return null;
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now - past;
+    const mins = Math.floor(diffMs / 60000);
+    const hours = Math.floor(diffMs / 3600000);
+    const days = Math.floor(diffMs / 86400000);
+    if (mins < 1) return '<1m';
+    if (days >= 1) {
+        const remHours = hours % 24;
+        return remHours ? `${days}d ${remHours}h` : `${days}d`;
+    }
+    if (hours >= 1) {
+        const remMins = mins % 60;
+        return remMins ? `${hours}h ${remMins}m` : `${hours}h`;
+    }
+    return `${mins}m`;
+}
+
+function updatePresenceDisplays() {
+    if (!latestPresenceData) return;
+    if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        const otherPresence = latestPresenceData[otherUser];
+        if (otherPresence) {
+            if (otherPresence.isOnline) {
+                otherUserStatus.textContent = 'Online';
+                otherUserStatus.className = 'status-online';
+            } else {
+                const durationText = otherPresence.lastSeen ? (getOfflineDuration(otherPresence.lastSeen) || 'unknown') : 'unknown';
+                otherUserStatus.textContent = `Offline ${durationText}`;
+                otherUserStatus.className = 'status-offline';
+            }
+        }
+    }
+
+    const userButtons = document.querySelectorAll('.user-buttons button');
+    userButtons.forEach(button => {
+        const userId = button.getAttribute('data-user');
+        const userPresence = latestPresenceData[userId];
+        if (userPresence && !userPresence.isOnline) {
+            const originalText = button.getAttribute('data-original-text') || button.textContent;
+            if (!button.getAttribute('data-original-text')) {
+                button.setAttribute('data-original-text', originalText);
+            }
+            const durationTextBtn = userPresence.lastSeen ? (getOfflineDuration(userPresence.lastSeen) || 'unknown') : 'unknown';
+            if (userId !== currentUser) {
+                button.textContent = `${originalText} (offline ${durationTextBtn})`;
+            }
+        }
+        if (userPresence && userPresence.isOnline) {
+            const originalText = button.getAttribute('data-original-text') || button.textContent;
+            button.textContent = originalText;
+        }
+    });
+}
+
+// --- Read Receipt Trigger (NEW) ---
+function triggerReadReceipt(messageData) {
+    if (document.visibilityState !== 'visible' || !windowFocused) return;
+    if (messageData.senderID !== currentUser && messageData._id) {
+        socket.emit('message read', { 
+            readerID: currentUser,
+            messageID: messageData._id 
+        });
+    }
+}
+
+// --- File Upload Logic ---
+if (photoInput) {
+    photoInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            uploadFile(file);
+        }
+        e.target.value = null;
+    });
+}
+
+async function uploadFile(file) {
+    if (!currentUser) return alert('Please select a user first.');
+
+    chatContainer.style.cursor = 'progress'; 
+
+    const formData = new FormData();
+    formData.append('mediaFile', file); 
+
+    try {
+        const response = await fetch('/upload', { method: 'POST', body: formData });
+        if (!response.ok) throw new Error('Upload failed with status: ' + response.status);
+        const data = await response.json(); 
+
+        const messageData = {
+            senderID: currentUser,
+            message: data.url,
+            type: data.type,
+            timestamp: new Date().toISOString()
+        };
+        socket.emit('chat message', messageData);
+
+    } catch (error) {
+        console.error('File upload failed:', error);
+        alert('File upload failed. See console for details.');
+    } finally {
+        chatContainer.style.cursor = 'default';
+    }
+}
+
+
+// --- Message Rendering Logic (UPDATED FOR STATUS) ---
+
+function createMessageElement(messageData) {
+    const senderKey = messageData.senderID || messageData.sender;
+    const isMyMessage = senderKey === currentUser;
+    const status = messageData.status || 'sent'; // Default status to 'sent' if missing
+
+    const li = document.createElement('li');
+    li.className = `message-bubble ${isMyMessage ? 'my-message' : 'their-message'}`;
+    // Use the MongoDB ID to target for status updates later
+    if (messageData._id) {
+        li.dataset.id = String(messageData._id);
+    }
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+
+    // --- Media/Text Content Rendering ---
+    if (messageData.type === 'image') {
+        const img = document.createElement('img');
+        img.src = messageData.message; 
+        // ... (styles)
+        contentDiv.appendChild(img);
+    } 
+    // ... (logic for video and document remains the same)
+    else if (messageData.type === 'video') {
+        const video = document.createElement('video');
+        video.src = messageData.message;
+        video.controls = true;
+        // ... (styles)
+        contentDiv.appendChild(video);
+    } else if (messageData.type === 'document') {
+        const docLink = document.createElement('a');
+        docLink.href = messageData.message;
+        docLink.target = '_blank';
+        docLink.textContent = `\ud83d\udcc4 Download File (${messageData.message.split('/').pop()})`; 
+        // ... (styles)
+        contentDiv.appendChild(docLink);
+    } else {
+        const textSpan = document.createElement('span');
+        textSpan.className = 'message-text';
+        const msg = String(messageData.message || '');
+        const frag = document.createDocumentFragment();
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        let lastIndex = 0;
+        let match;
+        while ((match = urlRegex.exec(msg)) !== null) {
+            const url = match[1];
+            if (match.index > lastIndex) frag.appendChild(document.createTextNode(msg.slice(lastIndex, match.index)));
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.textContent = url;
+            frag.appendChild(a);
+            lastIndex = match.index + url.length;
+        }
+        if (lastIndex < msg.length) frag.appendChild(document.createTextNode(msg.slice(lastIndex)));
+        textSpan.appendChild(frag);
+        contentDiv.appendChild(textSpan);
+    }
+
+    li.appendChild(contentDiv); 
+
+    // Time and Status Container
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'message-time';
+    const timeTextSpan = document.createElement('span');
+    timeTextSpan.className = 'time-text';
+    const ts = messageData.timestamp || new Date().toISOString();
+    timeTextSpan.textContent = getClockTime(ts);
+    timeSpan.appendChild(timeTextSpan);
+
+    // --- Status Checkmarks (NEW LOGIC) ---
+    if (isMyMessage) {
+        const statusSpan = document.createElement('span');
+        statusSpan.classList.add(`status-${status}`); 
+
+        if (status === 'read') {
+            statusSpan.innerHTML = '\u2713\u2713'; // Double checkmark
+        } else if (status === 'delivered') {
+            statusSpan.innerHTML = '\u2713\u2713'; // Double grey checks for delivered
+        } else {
+            statusSpan.innerHTML = '\u2713';  // Single checkmark (Default for sent)
+        }
+
+        timeSpan.appendChild(statusSpan);
+    }
+
+    li.appendChild(timeSpan);
+    
+    li.dataset.timestamp = ts;
+
+    return li;
+}
+
+function renderMessage(messageData) {
+    const ts = messageData.timestamp || new Date().toISOString();
+    ensureDateStamp(ts);
+    messages.appendChild(createMessageElement(messageData));
+    scrollToBottom();
+    const senderKey = messageData.senderID || messageData.sender;
+    const isIncoming = senderKey !== currentUser;
+    if (isIncoming && messageData._id && messageData.status !== 'read') {
+        const li = messages.querySelector(`li[data-id="${messageData._id}"]`);
+        if (li) observeForRead(li, messageData);
+    }
+}
+
+// --- Message Loading and Infinite Scroll ---
+async function loadMessages(before = null) {
+    if (isLoading || !hasMoreMessages) return [];
+    
+    isLoading = true;
+    showLoadingIndicator(true);
+    
+    try {
+        // Try the new API first
+        console.log('Trying API method...');
+        const url = new URL('/api/messages', window.location.origin);
+        if (before) {
+            url.searchParams.append('before', before.getTime());
+        }
+        url.searchParams.append('limit', MESSAGES_PER_PAGE);
+        
+        const response = await fetch(url);
+        if (response.ok) {
+            const newMessages = await response.json();
+            hasMoreMessages = newMessages.length === MESSAGES_PER_PAGE;
+            console.log('API method succeeded, loaded', newMessages.length, 'messages');
+            return newMessages;
+        }
+    } catch (error) {
+        console.log('API not available, falling back to socket method:', error.message);
+    }
+    
+    // Fallback: Request all messages and filter client-side
+    console.log('Using socket fallback method...');
+    return new Promise((resolve) => {
+        socket.emit('get history');
+        
+        // Set up a one-time listener for the history
+        const handleHistory = (messagesHistory) => {
+            socket.off('history', handleHistory);
+            console.log('Received history from socket:', messagesHistory.length, 'messages');
+            
+            let filteredMessages = messagesHistory;
+            
+            // If before date is provided, filter messages before that date
+            if (before) {
+                filteredMessages = messagesHistory.filter(msg => 
+                    new Date(msg.timestamp) < before
+                );
+            } else {
+                // Default: only get messages from the last 2 days
+                const twoDaysAgo = new Date();
+                twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+                filteredMessages = messagesHistory.filter(msg => 
+                    new Date(msg.timestamp) >= twoDaysAgo
+                );
+                console.log(`Filtered to last 2 days: ${filteredMessages.length} messages from ${messagesHistory.length} total`);
+            }
+            
+            // Sort by timestamp descending (newest first)
+            filteredMessages.sort((a, b) => 
+                new Date(b.timestamp) - new Date(a.timestamp)
+            );
+            
+            // Apply limit
+            const limitedMessages = filteredMessages.slice(0, MESSAGES_PER_PAGE);
+            hasMoreMessages = limitedMessages.length === MESSAGES_PER_PAGE;
+            
+            console.log('Returning', limitedMessages.length, 'filtered messages');
+            resolve(limitedMessages);
+        };
+        
+        socket.on('history', handleHistory);
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+            socket.off('history', handleHistory);
+            console.error('History request timed out');
+            resolve([]);
+        }, 5000);
+    }).finally(() => {
+        isLoading = false;
+        showLoadingIndicator(false);
+    });
+}
+
+function showLoadingIndicator(show) {
+    let loader = document.getElementById('loading-indicator');
+    if (show && !loader) {
+        loader = document.createElement('div');
+        loader.id = 'loading-indicator';
+        loader.textContent = 'Loading...';
+        loader.style.padding = '10px';
+        loader.style.textAlign = 'center';
+        loader.style.color = '#8696a0';
+        loader.style.fontStyle = 'italic';
+        loader.style.fontSize = '0.85rem';
+        messages.insertBefore(loader, messages.firstChild);
+    } else if (!show && loader) {
+        loader.remove();
+    }
+}
+
+function showLoadMoreButton() {
+    console.log('showLoadMoreButton called - fullHistory:', fullHistory ? fullHistory.length : 'none');
+    
+    // Don't show button if there's no history or no older messages
+    if (!fullHistory || fullHistory.length === 0) {
+        console.log('Not showing button - no history available');
+        return;
+    }
+    
+    // Check if there are currently displayed messages
+    const displayedMessages = messages.querySelectorAll('li:not(.date-separator)');
+    if (displayedMessages.length === 0) {
+        console.log('Not showing button - no messages currently displayed');
+        return;
+    }
+    
+    // Check if all displayed messages are already the oldest available
+    const oldestDisplayed = Array.from(displayedMessages).reduce((oldest, msg) => {
+        const oldestTime = new Date(oldest.dataset.timestamp).getTime();
+        const msgTime = new Date(msg.dataset.timestamp).getTime();
+        return msgTime < oldestTime ? msg : oldest;
+    });
+    
+    const olderMessages = fullHistory.filter(msg => 
+        new Date(msg.timestamp) < new Date(oldestDisplayed.dataset.timestamp)
+    );
+    
+    if (olderMessages.length === 0) {
+        console.log('Not showing button - no older messages available');
+        return;
+    }
+    
+    let loadMoreBtn = document.getElementById('load-more-btn');
+    if (!loadMoreBtn) {
+        console.log('Creating Load Previous Day button');
+        loadMoreBtn = document.createElement('button');
+        loadMoreBtn.id = 'load-more-btn';
+        loadMoreBtn.textContent = 'Load Previous Day';
+        loadMoreBtn.style.cssText = `
+            display: block;
+            margin: 10px auto;
+            padding: 8px 16px;
+            background-color: #2a3942;
+            color: #e9edef;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background-color 0.2s;
+        `;
+        
+        loadMoreBtn.addEventListener('click', () => {
+            console.log('Load Previous Day button clicked!');
+            console.log('Full history available:', fullHistory ? fullHistory.length : 'none');
+            loadMoreBtn.remove();
+            
+            if (fullHistory && fullHistory.length > 0) {
+                console.log('Full history has', fullHistory.length, 'messages');
+                
+                // Get all currently displayed message IDs
+                const displayedIds = Array.from(messages.querySelectorAll('li')).map(li => li.dataset.id);
+                console.log('Currently displayed messages:', displayedIds.length);
+                
+                // Find messages not yet displayed
+                const notDisplayed = fullHistory.filter(msg => 
+                    !displayedIds.includes(msg._id)
+                );
+                console.log('Messages not displayed:', notDisplayed.length);
+                
+                if (notDisplayed.length > 0) {
+                    // Get the oldest currently displayed message to determine the day boundary
+                    const displayedMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
+                    console.log('Displayed messages found:', displayedMessages.length);
+                    let targetDate = null;
+                    
+                    if (displayedMessages.length > 0) {
+                        const oldestDisplayedId = displayedMessages[0].dataset.id;
+                        console.log('Oldest displayed ID:', oldestDisplayedId);
+                        const oldestDisplayedMsg = fullHistory.find(msg => msg._id === oldestDisplayedId);
+                        if (oldestDisplayedMsg) {
+                            targetDate = new Date(oldestDisplayedMsg.timestamp);
+                            console.log('Oldest displayed message date:', targetDate);
+                            targetDate.setHours(0, 0, 0, 0); // Start of that day
+                            console.log('Target date (start of day):', targetDate);
+                        }
+                    }
+                    
+                    // If no displayed messages, get the newest message and go back one day
+                    if (!targetDate && fullHistory.length > 0) {
+                        const newestMsg = fullHistory.reduce((newest, msg) => 
+                            new Date(msg.timestamp) > new Date(newest.timestamp) ? msg : newest
+                        );
+                        targetDate = new Date(newestMsg.timestamp);
+                        targetDate.setDate(targetDate.getDate() - 1); // Go back one day
+                        targetDate.setHours(0, 0, 0, 0);
+                    }
+                    
+                    // Find all messages from the target day
+                    const nextDay = new Date(targetDate);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    console.log('Searching for messages between', targetDate, 'and', nextDay);
+                    
+                    const dayMessages = notDisplayed.filter(msg => {
+                        const msgDate = new Date(msg.timestamp);
+                        return msgDate >= targetDate && msgDate < nextDay;
+                    });
+                    console.log('Found messages for target day:', dayMessages.length);
+                    
+                    // If no messages from that day, try the previous day
+                    let toDisplay = dayMessages;
+                    let searchDate = new Date(targetDate);
+                    let attempts = 0;
+                    
+                    while (toDisplay.length === 0 && searchDate >= new Date(0) && attempts < 30) {
+                        attempts++;
+                        searchDate.setDate(searchDate.getDate() - 1);
+                        const searchNextDay = new Date(searchDate);
+                        searchNextDay.setDate(searchNextDay.getDate() + 1);
+                        
+                        console.log(`Attempt ${attempts}: Searching for messages between ${searchDate} and ${searchNextDay}`);
+                        
+                        toDisplay = notDisplayed.filter(msg => {
+                            const msgDate = new Date(msg.timestamp);
+                            return msgDate >= searchDate && msgDate < searchNextDay;
+                        });
+                        
+                        if (toDisplay.length > 0) {
+                            console.log(`Found ${toDisplay.length} messages on attempt ${attempts} for ${searchDate.toDateString()}`);
+                        }
+                    }
+                    
+                    console.log('Will display', toDisplay.length, 'messages from', searchDate.toDateString());
+                    
+                    // Rebuild the entire message list with proper chronological order
+                    // Get all currently displayed messages
+                    const currentMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'))
+                        .map(li => {
+                            const msgId = li.dataset.id;
+                            return fullHistory.find(msg => msg._id === msgId);
+                        })
+                        .filter(msg => msg);
+                    
+                    // Combine with new messages
+                    const allMessages = [...toDisplay, ...currentMessages];
+                    
+                    // Sort all messages by date (oldest to newest)
+                    allMessages.sort((a, b) => 
+                        new Date(a.timestamp) - new Date(b.timestamp)
+                    );
+                    
+                    // Clear and rebuild the entire message list
+                    messages.innerHTML = '';
+                    
+                    // Render all messages in proper order
+                    allMessages.forEach(msg => {
+                        const ts = msg.timestamp || new Date().toISOString();
+                        
+                        // Add date separator if needed
+                        const dateKey = getDateKey(ts);
+                        const existingDateSep = messages.querySelector(`li.date-separator[data-date="${dateKey}"]`);
+                        
+                        if (!existingDateSep) {
+                            const dateLi = document.createElement('li');
+                            dateLi.className = 'date-separator';
+                            dateLi.dataset.date = dateKey;
+                            dateLi.textContent = getDateLabel(ts);
+                            messages.appendChild(dateLi);
+                        }
+                        
+                        // Create and append message
+                        const element = createMessageElement(msg);
+                        messages.appendChild(element);
+                        
+                        // Set up read observer
+                        observeForRead(element, msg);
+                    });
+                    
+                    // Scroll to bottom to maintain position
+                    scrollToBottom();
+                    
+                    // Check if there are more days available
+                    const remainingMessages = notDisplayed.filter(msg => 
+                        !toDisplay.some(displayedMsg => displayedMsg._id === msg._id)
+                    );
+                    
+                    if (remainingMessages.length > 0) {
+                        console.log('More days available, showing button again');
+                        showLoadMoreButton();
+                    } else {
+                        console.log('No more days to load');
+                    }
+                } else {
+                    console.log('All messages are already displayed');
+                }
+            } else {
+                console.log('No full history available');
+            }
+        });
+        
+        console.log('Inserting Load Previous Day button into messages');
+        messages.insertBefore(loadMoreBtn, messages.firstChild);
+        console.log('Load Previous Day button inserted successfully');
+    } else {
+        console.log('Load Previous Day button already exists');
+    }
+}
+
+// Initialize chat with initial messages
+async function initChat() {
+    try {
+        // Clear existing messages
+        messages.innerHTML = '';
+        
+        console.log('Initializing chat, loading messages...');
+        // Load initial messages (last 2 days)
+        const initialMessages = await loadMessages();
+        console.log('Loaded initial messages:', initialMessages.length);
+        
+        if (initialMessages.length > 0) {
+            const fragment = document.createDocumentFragment();
+            initialMessages.reverse().forEach(msg => {
+                const element = createMessageElement(msg);
+                fragment.appendChild(element);
+                observeForRead(element, msg);
+            });
+            messages.appendChild(fragment);
+            scrollToBottom();
+            console.log('Rendered', initialMessages.length, 'messages');
+        }
+        
+        // Show "Load More" button if there are potentially more messages AND database has more messages
+        if (initialMessages.length === MESSAGES_PER_PAGE && fullHistory && fullHistory.length > MESSAGES_PER_PAGE) {
+            showLoadMoreButton();
+        }
+        
+        // Initialize infinite scroll
+        initInfiniteScroll();
+    } catch (error) {
+        console.error('Error initializing chat:', error);
+    }
+}
+
+// Initialize infinite scroll
+function initInfiniteScroll() {
+    messages.addEventListener('scroll', async () => {
+        const scrollTop = messages.scrollTop;
+        
+        // Load more when user scrolls near the top (within 200px)
+        if (scrollTop < 200 && !isLoading && hasMoreMessages) {
+            const firstMessage = messages.querySelector('li');
+            if (!firstMessage) return;
+            
+            const firstMessageDate = new Date(firstMessage.dataset.timestamp);
+            console.log('Loading older messages before:', firstMessageDate);
+            const newMessages = await loadMessages(firstMessageDate);
+            
+            if (newMessages.length > 0) {
+                console.log('Loaded', newMessages.length, 'older messages');
+                const fragment = document.createDocumentFragment();
+                
+                // Add messages in reverse order (oldest first)
+                newMessages.reverse().forEach(msg => {
+                    const element = createMessageElement(msg);
+                    fragment.appendChild(element);
+                    observeForRead(element, msg);
+                });
+                
+                // Store current scroll position
+                const oldScrollHeight = messages.scrollHeight;
+                const oldScrollTop = messages.scrollTop;
+                
+                // Insert new messages at the beginning
+                messages.insertBefore(fragment, messages.firstChild);
+                
+                // Adjust scroll to maintain position
+                const newScrollHeight = messages.scrollHeight;
+                messages.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+                
+                // Show "Load more" button if there are more messages
+                if (newMessages.length < MESSAGES_PER_PAGE) {
+                    hasMoreMessages = false;
+                }
+            } else {
+                hasMoreMessages = false;
+            }
+        }
+    });
+}
+
+// --- Socket.IO Event Listeners ---
+socket.on('chat message', (msg) => {
+    // Check if a list item with this ID already exists (prevents duplicates when sender receives own msg)
+    if (!document.querySelector(`li[data-id="${String(msg._id)}"]`)) {
+        renderMessage(msg);
+    }
+    lastActivityTs = Date.now();
+    // Immediate presence reflection for other user activity
+    if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        if ((msg.senderID || msg.sender) === otherUser) {
+            otherUserStatus.textContent = 'Online';
+            otherUserStatus.className = 'status-online';
+            clearStoredOfflineStart(otherUser);
+            delete localOfflineStart[otherUser];
+            // Receiver acknowledges delivery once bubble is rendered
+            if (msg._id) {
+                socket.emit('message delivered', {
+                    messageID: msg._id,
+                    senderID: msg.senderID || msg.sender
+                });
+            }
+        }
+    }
+});
+
+socket.on('history', (messagesHistory) => {
+    console.log('📨 History event received:', messagesHistory.length, 'messages');
+    console.log('👤 Current user:', currentUser || 'none');
+    
+    if (!currentUser) {
+        pendingHistory = messagesHistory;
+        fullHistory = messagesHistory; // Store full history
+        console.log('📝 History stored as pending, waiting for user selection');
+        return;
+    }
+    
+    // Store full history for load more functionality
+    fullHistory = messagesHistory;
+    console.log('Stored fullHistory:', fullHistory.length, 'messages');
+    lastActivityTs = Date.now();
+    messagesHistory.sort((a, b) => {
+        const ta = new Date(a.timestamp || 0).getTime();
+        const tb = new Date(b.timestamp || 0).getTime();
+        return ta - tb;
+    });
+    
+    // Filter to last 2 days for initial display
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const recentMessages = messagesHistory.filter(msg => 
+        new Date(msg.timestamp) >= twoDaysAgo
+    );
+    
+    console.log(`📋 Displaying ${recentMessages.length} messages from last 2 days (total: ${messagesHistory.length})`);
+    
+    const deliverIds = [];
+    recentMessages.forEach((msg, index) => {
+        if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
+            console.log(`🎨 Rendering message ${index + 1}/${recentMessages.length}:`, {
+                id: msg._id,
+                sender: msg.senderID,
+                type: msg.type,
+                hasMessage: !!msg.message
+            });
+            renderMessage(msg);
+        }
+        const isIncoming = (msg.senderID || msg.sender) !== currentUser;
+        if (isIncoming && msg.status === 'sent' && msg._id) {
+            deliverIds.push(msg._id);
+        }
+    });
+    
+    // Show load more button if there are older messages AND database has messages
+    if (messagesHistory && messagesHistory.length > 0 && messagesHistory.length > recentMessages.length) {
+        showLoadMoreButton();
+    }
+    
+    forceScrollToBottom();
+    if (currentUser) {
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        if (deliverIds.length > 0) {
+            socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
+        }
+        socket.emit('mark conversation read', { readerID: currentUser });
+    }
+});
+
+// --- Real-time Status Update Listener (NEW) ---
+socket.on('message status update', (data) => {
+    if (data.status === 'read') updateStatusUI(data.messageID, 'read');
+});
+
+// Delivered update (receiver online)
+socket.on('message delivered', (data) => {
+    updateStatusUI(data.messageID, 'delivered');
+});
+
+
+   
+
+
+
+// --- Event Handlers ---
+
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value.trim() && currentUser) {
+        const messageData = {
+            senderID: currentUser, 
+            message: input.value,
+            type: 'text',
+            status: 'sent', // Explicitly set status to sent
+            timestamp: new Date().toISOString()
+        };
+
+        socket.emit('chat message', messageData);
+        socket.emit('mark conversation read', { readerID: currentUser });
+        input.value = '';
+        if (lastInputHeightPx) {
+            input.style.height = lastInputHeightPx;
+        }
+        if (sendButton) sendButton.disabled = true;
+        input.focus();
+    }
+});
+
+input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (input.value.trim()) {
+            form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+    }
+});
+
+input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    const maxH = 160;
+    input.style.height = Math.min(input.scrollHeight, maxH) + 'px';
+    lastInputHeightPx = input.style.height;
+    if (sendButton) sendButton.disabled = input.value.trim().length === 0;
+    if (currentUser) {
+        socket.emit('typing', { userID: currentUser, isTyping: true });
+        if (typingTimeout) clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.emit('typing', { userID: currentUser, isTyping: false });
+        }, 1200);
+    }
+});
+
+input.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (input.value.trim()) {
+            form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+    }
+});
+
+// --- User Selection Functionality ---
+function setupUserSelection() {
+    const userButtons = document.querySelectorAll('.user-buttons button');
+
+    userButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const selectedUser = button.getAttribute('data-user');
+            selectUser(selectedUser);
+        });
+    });
+}
+
+function selectUser(userId) {
+    currentUser = userId;
+
+    // Tell the server which user we are
+    socket.emit('select user', userId);
+}
+
+socket.on('user selected', (success) => {
+    if (success) {
+        selectionScreen.style.display = 'none';
+        chatContainer.style.display = 'flex';
+        currentUserDisplay.textContent = currentUser;
+        
+        // Set the other user's name
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        otherUserName.textContent = otherUser.toUpperCase();
+        setStoredSelectedUser(currentUser);
+        
+        input.focus();
+
+        // Render pending history now that we know who the current user is
+        if (pendingHistory && pendingHistory.length > 0) {
+            console.log('Rendering pending history for user:', currentUser);
+            
+            // Store full history
+            fullHistory = pendingHistory;
+            console.log('Stored fullHistory from pendingHistory:', fullHistory.length, 'messages');
+            
+            // Filter to last 2 days
+            const twoDaysAgo = new Date();
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+            const recentMessages = pendingHistory.filter(msg => 
+                new Date(msg.timestamp) >= twoDaysAgo
+            );
+            
+            console.log(`Showing ${recentMessages.length} messages from last 2 days (total: ${pendingHistory.length})`);
+            
+            recentMessages.sort((a, b) => {
+                const ta = new Date(a.timestamp || 0).getTime();
+                const tb = new Date(b.timestamp || 0).getTime();
+                return ta - tb;
+            });
+            
+            recentMessages.forEach(renderMessage);
+            
+            // Show load more button if there are older messages AND database has messages
+            if (fullHistory && fullHistory.length > 0 && fullHistory.length > recentMessages.length) {
+                console.log('Calling showLoadMoreButton - fullHistory has', fullHistory.length, 'vs recent', recentMessages.length);
+                showLoadMoreButton();
+            } else {
+                console.log('Not showing load more button -', fullHistory ? 'no history loaded' : 'all messages are recent');
+            }
+            
+            pendingHistory = null; // Clear pending history after checking
+            
+            forceScrollToBottom();
+        }
+
+        // Request latest presence data
+        socket.emit('get presence update');
+    } else {
+        const userTryingToSelect = currentUser;
+        const otherUser = userTryingToSelect === 'i' ? 'x' : 'i';
+        
+        // Offer to force release the user if it seems stuck
+        if (confirm(`User ${otherUser.toUpperCase()} appears to be taken. Would you like to try force releasing them? This can help if they closed the browser improperly.`)) {
+            socket.emit('force release user', otherUser);
+            
+            // Listen for the response
+            socket.once('force release user', (response) => {
+                if (response.success) {
+                    console.log(`Successfully force released user ${otherUser}`);
+                    // Try selecting again after a short delay
+                    setTimeout(() => {
+                        socket.emit('select user', userTryingToSelect);
+                    }, 500);
+                } else {
+                    console.log(`Failed to force release user ${otherUser}:`, response.reason);
+                    alert(`Could not release user ${otherUser.toUpperCase()}. Reason: ${response.reason || 'Unknown error'}`);
+                }
+            });
+        } else {
+            alert('This user is already taken. Please select the other user.');
+            clearStoredSelectedUser();
+            selectionScreen.style.display = 'flex';
+            chatContainer.style.display = 'none';
+        }
+    }
+});
+
+function updateOtherUserStatus() {
+    // Logic to update the other user's status display
+    socket.emit('get available users');
+}
+
+socket.on('available users', (inUseList) => {
+    console.log('Available users:', inUseList);
+
+    // Enable/disable buttons based on availability
+    const userButtons = document.querySelectorAll('.user-buttons button');
+    userButtons.forEach(button => {
+        const userId = button.getAttribute('data-user');
+        button.disabled = inUseList.includes(userId) && userId !== currentUser;
+    });
+});
+
+socket.on('typing', (data) => {
+    if (!currentUser) return;
+    const otherUser = currentUser === 'i' ? 'x' : 'i';
+    if (data.userID === otherUser) {
+        if (data.isTyping) {
+            otherUserStatus.textContent = 'Typing…';
+            otherUserStatus.className = 'status-typing';
+        } else {
+            updatePresenceDisplays();
+        }
+    }
+});
+
+// --- Enhanced Presence Update Handler ---
+socket.on('presence update', (presenceData) => {
+    console.log('Presence update received:', presenceData);
+    latestPresenceData = presenceData;
+    for (const uid in presenceData) {
+        const p = presenceData[uid];
+        if (p.isOnline) {
+            delete localOfflineStart[uid];
+            clearStoredOfflineStart(uid);
+        } else {
+            // rely exclusively on server-provided lastSeen for offline duration
+            if (p.lastSeen) {
+                localOfflineStart[uid] = p.lastSeen;
+                setStoredOfflineStart(uid, p.lastSeen);
+            }
+        }
+    }
+    updatePresenceDisplays();
+    lastActivityTs = Date.now();
+    if (!presenceTickerId) {
+        presenceTickerId = setInterval(() => {
+            updatePresenceDisplays();
+            updateMessageTimestamps();
+            socket.emit('get presence update');
+        }, 10000);
+    }
+});
+
+// Photo button click handler
+if (photoButton && photoInput) {
+    photoButton.addEventListener('click', () => {
+        photoInput.click();
+    });
+}
+
+// Initialize user selection when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    ['i','x'].forEach(uid => {
+        const stored = getStoredOfflineStart(uid);
+        if (stored) localOfflineStart[uid] = stored;
+    });
+    setupUserSelection();
+    const storedUser = getStoredSelectedUser();
+    if (storedUser) {
+        currentUser = storedUser;
+        selectionScreen.style.display = 'none';
+        chatContainer.style.display = 'flex';
+        currentUserDisplay.textContent = currentUser;
+        const otherUser = currentUser === 'i' ? 'x' : 'i';
+        otherUserName.textContent = otherUser.toUpperCase();
+        socket.emit('select user', currentUser);
+        socket.emit('get presence update');
+        socket.emit('get history');
+        socket.emit('mark conversation read', { readerID: currentUser });
+    }
+    if (!presenceTickerId) {
+        presenceTickerId = setInterval(() => {
+            updatePresenceDisplays();
+            updateMessageTimestamps();
+            socket.emit('get presence update');
+        }, 10000);
+    }
+    startRefreshWatchdog();
+    window.addEventListener('focus', () => { windowFocused = true; });
+    window.addEventListener('blur', () => { windowFocused = false; });
+    document.addEventListener('visibilitychange', () => { updatePresenceDisplays(); });
+});
+
+function startRefreshWatchdog() {
+    setInterval(() => {
+        const disconnected = socket.disconnected;
+        const stale = Date.now() - lastActivityTs > 120000; // >2 minutes without activity
+        if (disconnected) {
+            try { socket.connect(); } catch (_) {}
+        }
+        if (stale) {
+            socket.emit('get presence update');
+            socket.emit('get history');
+            updatePresenceDisplays();
+            updateMessageTimestamps();
+        }
+    }, 30000);
+}
+
+function observeForRead(li, messageData) {
+    const id = messageData._id;
+    if (!id) return;
+    if (li.dataset.readObserved === '1') return;
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting && document.visibilityState === 'visible' && windowFocused) {
+                pendingReadIds.add(id);
+                if (!readFlushTimer) {
+                    readFlushTimer = setTimeout(() => {
+                        const ids = Array.from(pendingReadIds);
+                        pendingReadIds.clear();
+                        readFlushTimer = null;
+                        if (ids.length > 0) {
+                            socket.emit('messages read', { readerID: currentUser, messageIDs: ids });
+                        }
+                    }, 250);
+                }
+                io.disconnect();
+                li.dataset.readObserved = '1';
+            }
+        });
+    }, { threshold: 0.3 });
+    io.observe(li);
+}
+
+socket.on('reconnect', () => {
+    if (currentUser) {
+        socket.emit('select user', currentUser);
+        socket.emit('get presence update');
+        socket.emit('get history');
+    }
+});
+
+// --- Timestamp Ticker for Message Bubbles ---
+function updateMessageTimestamps() {
+    const items = document.querySelectorAll('li.message-bubble');
+    items.forEach(li => {
+        const ts = li.dataset.timestamp;
+        const timeTextEl = li.querySelector('.message-time .time-text');
+        if (ts && timeTextEl) {
+            timeTextEl.textContent = getClockTime(ts);
+        }
+    });
+}
+function getStoredSelectedUser() {
+    try {
+        return localStorage.getItem(SELECTED_USER_KEY);
+    } catch (_) { return null; }
+}
+
+function setStoredSelectedUser(uid) {
+    try { localStorage.setItem(SELECTED_USER_KEY, uid); } catch (_) {}
+}
+
+function clearStoredSelectedUser() {
+    try { localStorage.removeItem(SELECTED_USER_KEY); } catch (_) {}
 }
