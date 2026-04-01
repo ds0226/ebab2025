@@ -71,7 +71,7 @@ const io = new Server(server, {
 }); 
 
 // --- MongoDB Configuration ---
-const uri = process.env.MONGO_URI; 
+const uri = process.env.MONGO_URI || "mongodb+srv://davidsonsolomon26:Davien11@ebab.4fbr6fo.mongodb.net/?appName=ebab"; 
 const dbName = "chatAppDB"; 
 const collectionName = "messages";
 let messagesCollection; 
