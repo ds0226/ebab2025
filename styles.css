@@ -1,0 +1,299 @@
+/* --- Global Styles --- */
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "San Francisco", "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans", sans-serif;
+    font-size: 14px;
+    background-color: #0b141a;
+    color: #e9edef;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    box-sizing: border-box;
+}
+
+/* --- Selection Screen --- */
+#initial-user-selection {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    height: 100%;
+    width: 100%;
+}
+
+.user-buttons button {
+    margin: 10px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    background-color: #2a3942;
+    color: #e9edef;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.user-buttons button:hover:not(:disabled) {
+    background-color: #384e5a;
+}
+
+.user-buttons button:disabled {
+    background-color: #1f2c33;
+    color: #8696a0;
+    cursor: not-allowed;
+}
+
+/* --- Chat Container (Holds header, messages, form) --- */
+#chat-container {
+    display: flex; /* CRITICAL: Sets up the main layout */
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* --- Header Bar (Top) --- */
+#header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background-color: #202c33;
+    color: #e9edef;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+#user-info-left {
+    display: flex;
+    align-items: center;
+}
+
+#user-info-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.user-id {
+    font-weight: bold;
+    color: #00a884;
+    font-size: 1rem;
+}
+
+.other-user-label {
+    font-weight: 600;
+    color: #e9edef;
+    font-size: 1.15rem;
+}
+
+.status-online {
+    color: #00a884;
+    font-weight: normal;
+    font-size: 0.95rem;
+}
+
+.status-offline, .status-recently-online {
+    color: #8696a0;
+    font-weight: normal;
+    font-size: 0.95rem;
+}
+
+.status-typing {
+    color: #53bdeb;
+    font-weight: normal;
+    font-size: 0.95rem;
+}
+
+/* --- Messages Container --- */
+#messages {
+    list-style-type: none;
+    /* Adjust margins to make space for fixed header and form */
+    margin: 56px 0 70px 0; 
+    padding: 16px;
+    overflow-y: auto;
+    width: 100%;
+    box-sizing: border-box;
+    flex-grow: 1; /* Allow message area to fill space */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch; /* Allow proper message alignment */
+}
+
+/* --- Message Bubbles --- */
+.message-bubble {
+    display: inline-flex; /* Changed from flex to inline-flex */
+    flex-direction: column;
+    width: fit-content; /* NEW: Size to content exactly */
+    max-width: 65%;
+    margin-bottom: 10px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    position: relative;
+    word-wrap: break-word;
+    box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
+}
+
+.my-message {
+    background-color: #202c33;
+    align-self: flex-end;
+    margin-left: auto;
+}
+
+.their-message {
+    background-color: #202c33; /* Dark gray */
+    align-self: flex-start;
+    margin-right: auto;
+}
+
+.message-text, .message-content a {
+    font-size: 0.85rem;
+    line-height: 1.25;
+    padding-right: 56px;
+    font-weight: 300;
+    white-space: pre-wrap;
+    color: rgba(233, 237, 239, 0.95);
+}
+
+/* Styles for embedded media */
+.message-content img, .message-content video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    margin-top: 5px;
+}
+
+.message-content a {
+    /* Style for document link */
+    font-weight: normal;
+    white-space: nowrap;
+}
+
+/* --- Timestamp and Status --- */
+.message-time {
+    font-size: 0.68rem;
+    color: rgba(255, 255, 255, 0.45);
+    position: absolute;
+    right: 6px;
+    bottom: 4px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.status-sent {
+    color: #8696a0;
+    font-weight: normal;
+}
+
+.status-delivered {
+    color: #8696a0;
+    font-weight: normal;
+}
+
+.status-read {
+    color: #53bdeb;
+    font-weight: normal;
+}
+
+.date-separator {
+    align-self: center;
+    background-color: #2a3942;
+    color: #d1d7db;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    margin: 12px 0;
+    display: inline-block;
+}
+
+/* --- Input Form (Bottom) --- */
+#form {
+    display: flex;
+    align-items: center; 
+    padding: 6px 8px;
+    background-color: #1f2c33;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+#input {
+    flex-grow: 1;
+    min-height: 34px;
+    max-height: 160px;
+    padding: 8px 12px;
+    margin: 0 6px;
+    border: none;
+    border-radius: 18px;
+    background-color: #2a3942;
+    color: #e9edef;
+    resize: none;
+    overflow-y: auto;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+#form button {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    margin: 0 1px;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: #8696a0;
+    cursor: pointer;
+}
+
+#form button:disabled {
+    color: #3a4a54;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+#send-button {
+    background-color: transparent;
+    color: #00a884;
+}
+
+#send-button:disabled {
+    color: #3d7c68;
+}
+
+#form button svg {
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}
+
+/* Force-hide the native file input (triggered via photo button) */
+#photo-input {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Mobile alignment adjustments */
+@media (max-width: 600px) {
+    #form { padding: 8px; }
+    #input {
+        font-size: 16px; /* Prevent iOS zoom and improve alignment */
+        margin: 0 8px;
+    }
+    #form button { width: 32px; height: 32px; }
+    #form button svg { width: 18px; height: 18px; }
+}
