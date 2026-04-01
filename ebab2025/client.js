@@ -871,7 +871,7 @@ socket.on('history', (messagesHistory) => {
         if (deliverIds.length > 0) {
             socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
         }
-        socket.emit('mark conversation read', { readerID: currentUser });
+        // Removed automatic mark as read - let intersection observer handle it
     }
 });
 
@@ -904,7 +904,7 @@ form.addEventListener('submit', (e) => {
         };
 
         socket.emit('chat message', messageData);
-        socket.emit('mark conversation read', { readerID: currentUser });
+        // Removed automatic mark as read - let intersection observer handle it
         input.value = '';
         if (lastInputHeightPx) {
             input.style.height = lastInputHeightPx;
@@ -1127,7 +1127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('select user', currentUser);
         socket.emit('get presence update');
         socket.emit('get history');
-        socket.emit('mark conversation read', { readerID: currentUser });
+        // Removed automatic mark as read on load - let user actually read messages
     }
     if (!presenceTickerId) {
         presenceTickerId = setInterval(() => {
