@@ -987,26 +987,22 @@ socket.on('user selected', (success) => {
             fullHistory = pendingHistory;
             console.log('Stored fullHistory from pendingHistory:', fullHistory.length, 'messages');
             
-            // Filter to last 2 days
-            const twoDaysAgo = new Date();
-            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-            const recentMessages = pendingHistory.filter(msg => 
-                new Date(msg.timestamp) >= twoDaysAgo
-            );
+            // Show all messages (no time filter)
+            const allMessages = pendingHistory;
             
-            console.log(`Showing ${recentMessages.length} messages from last 2 days (total: ${pendingHistory.length})`);
+            console.log(`Showing all ${allMessages.length} messages`);
             
-            recentMessages.sort((a, b) => {
+            allMessages.sort((a, b) => {
                 const ta = new Date(a.timestamp || 0).getTime();
                 const tb = new Date(b.timestamp || 0).getTime();
                 return ta - tb;
             });
             
-            recentMessages.forEach(renderMessage);
+            allMessages.forEach(renderMessage);
             
             // Show load more button if there are older messages AND database has messages
-            if (fullHistory && fullHistory.length > 0 && fullHistory.length > recentMessages.length) {
-                console.log('Calling showLoadMoreButton - fullHistory has', fullHistory.length, 'vs recent', recentMessages.length);
+            if (fullHistory && fullHistory.length > 0 && fullHistory.length > allMessages.length) {
+                console.log('Calling showLoadMoreButton - fullHistory has', fullHistory.length, 'vs all', allMessages.length);
                 showLoadMoreButton();
             } else {
                 console.log('Not showing load more button -', fullHistory ? 'no history loaded' : 'all messages are recent');

@@ -167,10 +167,8 @@ async function dbFindAll(options = {}) {
     if (before) {
         query.timestamp = { $lt: new Date(before) };
     } else {
-        // Default: only get messages from the last 2 days
-        const twoDaysAgo = new Date();
-        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-        query.timestamp = { $gte: twoDaysAgo };
+        // Load all messages (no time filter)
+        // query remains empty to get all messages
     }
     
     if (useMemoryStore || !messagesCollection) {
