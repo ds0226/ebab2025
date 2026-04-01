@@ -712,7 +712,7 @@ async function initChat() {
         messages.innerHTML = '';
         
         console.log('Initializing chat, loading messages...');
-        // Load initial messages (last 2 days)
+        // Load initial messages (all available)
         const initialMessages = await loadMessages();
         console.log('Loaded initial messages:', initialMessages.length);
         
@@ -834,19 +834,15 @@ socket.on('history', (messagesHistory) => {
         return ta - tb;
     });
     
-    // Filter to last 2 days for initial display
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-    const recentMessages = messagesHistory.filter(msg => 
-        new Date(msg.timestamp) >= twoDaysAgo
-    );
+    // Display all messages (no time filter)
+    const allMessages = messagesHistory;
     
-    console.log(`📋 Displaying ${recentMessages.length} messages from last 2 days (total: ${messagesHistory.length})`);
+    console.log(`📋 Displaying all ${allMessages.length} messages`);
     
     const deliverIds = [];
-    recentMessages.forEach((msg, index) => {
+    allMessages.forEach((msg, index) => {
         if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
-            console.log(`🎨 Rendering message ${index + 1}/${recentMessages.length}:`, {
+            console.log(`🎨 Rendering message ${index + 1}/${allMessages.length}:`, {
                 id: msg._id,
                 sender: msg.senderID,
                 type: msg.type,
@@ -861,8 +857,10 @@ socket.on('history', (messagesHistory) => {
     });
     
     // Show load more button if there are older messages AND database has messages
-    if (messagesHistory && messagesHistory.length > 0 && messagesHistory.length > recentMessages.length) {
+    if (messagesHistory && messagesHistory.length > 0 && messagesHistory.length > allMessages.length) {
         showLoadMoreButton();
+    } else {
+        console.log('Not showing load more button - all messages are displayed');
     }
     
     forceScrollToBottom();
