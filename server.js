@@ -322,11 +322,32 @@ function recalcPresence(userId) {
 }
 // --- Server and Socket.IO Logic ---
 function startServerLogic() {
+    const serverStartTime = new Date();
+    
+    // Performance monitoring
+    let requestCount = 0;
+    let lastActivity = Date.now();
+    
     app.use(express.static(path.join(__dirname, 'ebab2025')));
     app.use('/uploads', express.static('uploads'));
 
     app.get('/health', (req, res) => {
-        res.status(200).send('OK');
+        requestCount++;
+        lastActivity = Date.now();
+        const uptime = Date.now() - serverStartTime.getTime();
+        const uptimeMinutes = Math.floor(uptime / 60000);
+        const uptimeHours = Math.floor(uptimeMinutes / 60);
+        
+        res.status(200).json({
+            status: 'OK',
+            uptime: `${uptimeHours}h ${uptimeMinutes % 60}m`,
+            uptimeMs: uptime,
+            requestCount: requestCount,
+            serverStart: serverStartTime.toISOString(),
+            lastActivity: new Date(lastActivity).toISOString(),
+            memory: process.memoryUsage(),
+            nodeVersion: process.version
+        });
     });
 
     // Endpoint to get paginated messages
@@ -710,13 +731,56 @@ function startServerLogic() {
 
     server.listen(port, () => {
         console.log(`Server listening on port ${port}`);
+        console.log(`Server started at: ${serverStartTime.toISOString()}`);
         
         // Start periodic presence updates (every 30 seconds)
         setInterval(broadcastPresenceUpdate, 30000);
 
         setInterval(reconcilePresence, 10000);
 
-        // External uptime monitors should ping /health; no internal ping is started.
+        // 24/7 Keep-alive mechanism - prevent sleep
+        setInterval(() => {
+            const now = Date.now();
+            const uptime = now - serverStartTime.getTime();
+            const uptimeMinutes = Math.floor(uptime / 60000);
+            
+            console.log(`🟢 Server alive - Uptime: ${Math.floor(uptimeMinutes / 60)}h ${uptimeMinutes % 60}m | Requests: ${requestCount} | Memory: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+            
+            // Keep server warm
+            lastActivity = now;
+        }, 60000); // Every minute
+
+        // Self-ping to prevent connection timeouts
+        setInterval(() => {
+            const http = require('http');
+            const options = {
+                hostname: 'localhost',
+                port: port,
+                path: '/health',
+                method: 'GET',
+                timeout: 5000
+            };
+            
+            const req = http.request(options, (res) => {
+                res.on('data', () => {});
+                res.on('end', () => {
+                    console.log('🔄 Self-ping successful');
+                });
+            });
+            
+            req.on('error', (err) => {
+                console.log('❌ Self-ping failed:', err.message);
+            });
+            
+            req.setTimeout(5000, () => {
+                req.destroy();
+                console.log('⏰ Self-ping timeout');
+            });
+            
+            req.end();
+        }, 300000); // Every 5 minutes
+
+        console.log('🚀 24/7 monitoring enabled - Keep-alive systems active');
     });
 }
 
