@@ -367,7 +367,7 @@ function startServerLogic() {
             const { before, after, limit = 50 } = req.query;
             const messages = await dbFindAll({
                 before: before ? new Date(parseInt(before)) : null,
-                after: after ? new Date(parseInt(after)) : null,
+                after: after ? new Date(parseInt(after)) : new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
                 limit: parseInt(limit)
             });
             res.json(messages);
@@ -488,6 +488,9 @@ function startServerLogic() {
                     }
                     if (data && data.after) {
                         options.after = new Date(data.after);
+                    } else {
+                        // Default to last 2 days if no after date specified
+                        options.after = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
                     }
                     if (data && data.limit) {
                         options.limit = data.limit;

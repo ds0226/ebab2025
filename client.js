@@ -999,7 +999,10 @@ document.addEventListener('DOMContentLoaded', () => {
         otherUserName.textContent = otherUser.toUpperCase();
         socket.emit('select user', currentUser);
         socket.emit('get presence update');
-        socket.emit('get history');
+        // Request only last 2 days of history
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        socket.emit('get history', { after: twoDaysAgo.getTime() });
         socket.emit('mark conversation read', { readerID: currentUser });
     }
     if (!presenceTickerId) {
@@ -1024,7 +1027,10 @@ function startRefreshWatchdog() {
         }
         if (stale) {
             socket.emit('get presence update');
-            socket.emit('get history');
+            // Request only last 2 days of history
+            const twoDaysAgo = new Date();
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+            socket.emit('get history', { after: twoDaysAgo.getTime() });
             updatePresenceDisplays();
             updateMessageTimestamps();
         }
@@ -1061,7 +1067,10 @@ socket.on('reconnect', () => {
     if (currentUser) {
         socket.emit('select user', currentUser);
         socket.emit('get presence update');
-        socket.emit('get history');
+        // Request only last 2 days of history
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        socket.emit('get history', { after: twoDaysAgo.getTime() });
     }
 });
 
