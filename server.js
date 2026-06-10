@@ -160,24 +160,35 @@ async function connectDB() {
 }
 
 async function dbFindAll(options = {}) {
-    const { before = null, limit = null } = options;
+    const { before = null, after = null, limit = null } = options;
     let query = {};
     
     // If before date is provided, only get messages before that date
     if (before) {
         query.timestamp = { $lt: new Date(before) };
-    } else {
-        // Load all messages (no time filter)
-        // query remains empty to get all messages
+    }
+    
+    // If after date is provided, only get messages after that date
+    if (after) {
+        if (query.timestamp) {
+            query.timestamp.$gte = new Date(after);
+        } else {
+            query.timestamp = { $gte: new Date(after) };
+        }
     }
     
     if (useMemoryStore || !messagesCollection) {
         let results = [...messagesMemory];
         if (query.timestamp) {
-            results = results.filter(msg => 
-                new Date(msg.timestamp) >= (query.timestamp.$gte || 0) &&
-                (!query.timestamp.$lt || new Date(msg.timestamp) < query.timestamp.$lt)
-            );
+            results = results.filter(msg => {
+                const msgDate = new Date(msg.timestamp);
+                const afterDate = query.timestamp.$gte ? new Date(query.timestamp.$gte) : null;
+                const beforeDate = query.timestamp.$lt ? new Date(query.timestamp.$lt) : null;
+                
+                if (afterDate && msgDate < afterDate) return false;
+                if (beforeDate && msgDate >= beforeDate) return false;
+                return true;
+            });
         }
         // Sort by timestamp descending (newest first)
         results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -353,9 +364,10 @@ function startServerLogic() {
     // Endpoint to get paginated messages
     app.get('/api/messages', async (req, res) => {
         try {
-            const { before, limit = 50 } = req.query;
+            const { before, after, limit = 50 } = req.query;
             const messages = await dbFindAll({
                 before: before ? new Date(parseInt(before)) : null,
+                after: after ? new Date(parseInt(after)) : null,
                 limit: parseInt(limit)
             });
             res.json(messages);
@@ -407,7 +419,7 @@ function startServerLogic() {
         socket.emit('presence update', presenceData); 
 
         try {
-            const messagesHistory = (await dbFindAll()).map(m => ({ ...m, _id: String(m._id) }));
+            const messagesHistory = (await dbFindAll({ after: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) })).map(m => ({ ...m, _id: String(m._id) }));
             socket.emit('history', messagesHistory);
         } catch (e) {
             console.error('Error fetching history:', e);
@@ -468,9 +480,19 @@ function startServerLogic() {
         });
 
         // --- Get History (for periodic refresh) ---
-        socket.on('get history', async () => {
+        socket.on('get history', async (data) => {
                 try {
-                    const messagesHistory = (await dbFindAll()).map(m => ({ ...m, _id: String(m._id) }));
+                    const options = {};
+                    if (data && data.before) {
+                        options.before = new Date(data.before);
+                    }
+                    if (data && data.after) {
+                        options.after = new Date(data.after);
+                    }
+                    if (data && data.limit) {
+                        options.limit = data.limit;
+                    }
+                    const messagesHistory = (await dbFindAll(options)).map(m => ({ ...m, _id: String(m._id) }));
                     socket.emit('history', messagesHistory);
                 } catch (e) {
                     console.error('Error fetching history (get history):', e);
