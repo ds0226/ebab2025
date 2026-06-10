@@ -544,21 +544,19 @@ function showLoadMoreButton() {
             
             if (olderMessages.length > 0) {
                 console.log('Loaded', olderMessages.length, 'older messages');
-                const fragment = document.createDocumentFragment();
-                
-                // Add messages in reverse order (oldest first)
-                olderMessages.reverse().forEach(msg => {
-                    const element = createMessageElement(msg);
-                    fragment.appendChild(element);
-                    observeForRead(element, msg);
-                });
                 
                 // Store current scroll position
                 const oldScrollHeight = messages.scrollHeight;
                 const oldScrollTop = messages.scrollTop;
                 
-                // Insert new messages at the beginning
-                messages.insertBefore(fragment, messages.firstChild);
+                // Add messages in reverse order (oldest first) with date separators
+                olderMessages.reverse().forEach(msg => {
+                    const ts = msg.timestamp || new Date().toISOString();
+                    ensureDateStamp(ts);
+                    const element = createMessageElement(msg);
+                    messages.insertBefore(element, messages.firstChild);
+                    observeForRead(element, msg);
+                });
                 
                 // Adjust scroll to maintain position
                 const newScrollHeight = messages.scrollHeight;
