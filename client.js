@@ -409,7 +409,7 @@ function renderMessage(messageData) {
 }
 
 // --- Message Loading and Infinite Scroll ---
-async function loadMessages(before = null) {
+async function loadMessages(before = null, after = null) {
     if (isLoading || !hasMoreMessages) return [];
     
     isLoading = true;
@@ -421,6 +421,9 @@ async function loadMessages(before = null) {
         const url = new URL('/api/messages', window.location.origin);
         if (before) {
             url.searchParams.append('before', before.getTime());
+        }
+        if (after) {
+            url.searchParams.append('after', after.getTime());
         }
         url.searchParams.append('limit', MESSAGES_PER_PAGE);
         
@@ -442,6 +445,9 @@ async function loadMessages(before = null) {
         
         if (before) {
             requestData.before = before.getTime();
+        }
+        if (after) {
+            requestData.after = after.getTime();
         }
         
         socket.emit('get history', requestData);
@@ -539,8 +545,12 @@ function showLoadMoreButton() {
             const oldestDate = new Date(oldestDisplayed.dataset.timestamp);
             console.log('Loading messages before:', oldestDate);
             
-            // Load older messages from server
-            const olderMessages = await loadMessages(oldestDate);
+            // Load older messages from server (limit to 2 days before oldest)
+            const twoDaysBeforeOldest = new Date(oldestDate);
+            twoDaysBeforeOldest.setDate(twoDaysBeforeOldest.getDate() - 2);
+            
+            // Use the loadMessages function with before and after parameters
+            const olderMessages = await loadMessages(oldestDate, twoDaysBeforeOldest);
             
             if (olderMessages.length > 0) {
                 console.log('Loaded', olderMessages.length, 'older messages');
@@ -549,13 +559,41 @@ function showLoadMoreButton() {
                 const oldScrollHeight = messages.scrollHeight;
                 const oldScrollTop = messages.scrollTop;
                 
-                // Add messages in reverse order (oldest first) with date separators
-                olderMessages.reverse().forEach(msg => {
+                // Sort messages by timestamp (oldest first)
+                olderMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                // Group messages by date
+                const messagesByDate = {};
+                olderMessages.forEach(msg => {
                     const ts = msg.timestamp || new Date().toISOString();
-                    ensureDateStamp(ts);
-                    const element = createMessageElement(msg);
-                    messages.insertBefore(element, messages.firstChild);
-                    observeForRead(element, msg);
+                    const dateKey = getDateKey(ts);
+                    if (!messagesByDate[dateKey]) {
+                        messagesByDate[dateKey] = [];
+                    }
+                    messagesByDate[dateKey].push(msg);
+                });
+                
+                // Get the dates in order (oldest first)
+                const datesInOrder = Object.keys(messagesByDate).sort();
+                
+                // Insert messages in reverse date order (newest date first) so they appear correctly
+                datesInOrder.reverse().forEach(dateKey => {
+                    // Check if this date separator already exists in the messages container
+                    if (!messages.querySelector(`li.date-separator[data-date="${dateKey}"]`)) {
+                        const sampleMsg = messagesByDate[dateKey][0];
+                        const dateLi = document.createElement('li');
+                        dateLi.className = 'date-separator';
+                        dateLi.dataset.date = dateKey;
+                        dateLi.textContent = getDateLabel(sampleMsg.timestamp);
+                        messages.insertBefore(dateLi, messages.firstChild);
+                    }
+                    
+                    // Insert messages for this date in reverse order (newest first)
+                    messagesByDate[dateKey].reverse().forEach(msg => {
+                        const element = createMessageElement(msg);
+                        messages.insertBefore(element, messages.firstChild);
+                        observeForRead(element, msg);
+                    });
                 });
                 
                 // Adjust scroll to maintain position
