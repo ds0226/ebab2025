@@ -555,50 +555,34 @@ function showLoadMoreButton() {
             if (olderMessages.length > 0) {
                 console.log('Loaded', olderMessages.length, 'older messages');
                 
-                // Store current scroll position
-                const oldScrollHeight = messages.scrollHeight;
-                const oldScrollTop = messages.scrollTop;
+                // Get all currently displayed messages
+                const currentMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'))
+                    .map(li => {
+                        const msgId = li.dataset.id;
+                        return fullHistory ? fullHistory.find(msg => msg._id === msgId) : null;
+                    })
+                    .filter(msg => msg);
                 
-                // Sort messages by timestamp (oldest first)
-                olderMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                // Combine with new messages
+                const allMessages = [...olderMessages, ...currentMessages];
                 
-                // Group messages by date
-                const messagesByDate = {};
-                olderMessages.forEach(msg => {
+                // Sort all messages by date (oldest to newest)
+                allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                // Clear and rebuild the entire message list
+                messages.innerHTML = '';
+                
+                // Render all messages in proper order
+                allMessages.forEach(msg => {
                     const ts = msg.timestamp || new Date().toISOString();
-                    const dateKey = getDateKey(ts);
-                    if (!messagesByDate[dateKey]) {
-                        messagesByDate[dateKey] = [];
-                    }
-                    messagesByDate[dateKey].push(msg);
+                    ensureDateStamp(ts);
+                    const element = createMessageElement(msg);
+                    messages.appendChild(element);
+                    observeForRead(element, msg);
                 });
                 
-                // Get the dates in order (oldest first)
-                const datesInOrder = Object.keys(messagesByDate).sort();
-                
-                // Insert messages in reverse date order (newest date first) so they appear correctly
-                datesInOrder.reverse().forEach(dateKey => {
-                    // Check if this date separator already exists in the messages container
-                    if (!messages.querySelector(`li.date-separator[data-date="${dateKey}"]`)) {
-                        const sampleMsg = messagesByDate[dateKey][0];
-                        const dateLi = document.createElement('li');
-                        dateLi.className = 'date-separator';
-                        dateLi.dataset.date = dateKey;
-                        dateLi.textContent = getDateLabel(sampleMsg.timestamp);
-                        messages.insertBefore(dateLi, messages.firstChild);
-                    }
-                    
-                    // Insert messages for this date in reverse order (newest first)
-                    messagesByDate[dateKey].reverse().forEach(msg => {
-                        const element = createMessageElement(msg);
-                        messages.insertBefore(element, messages.firstChild);
-                        observeForRead(element, msg);
-                    });
-                });
-                
-                // Adjust scroll to maintain position
-                const newScrollHeight = messages.scrollHeight;
-                messages.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+                // Scroll to bottom
+                scrollToBottom();
                 
                 // Show "Load more" button if there are more messages
                 if (olderMessages.length === MESSAGES_PER_PAGE) {
