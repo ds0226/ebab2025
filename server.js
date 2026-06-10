@@ -365,11 +365,17 @@ function startServerLogic() {
     app.get('/api/messages', async (req, res) => {
         try {
             const { before, after, limit = 50 } = req.query;
-            const messages = await dbFindAll({
+            const options = {
                 before: before ? new Date(parseInt(before)) : null,
-                after: after ? new Date(parseInt(after)) : new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
                 limit: parseInt(limit)
-            });
+            };
+            // Only apply default after filter if neither before nor after is provided
+            if (!before && !after) {
+                options.after = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+            } else if (after) {
+                options.after = new Date(parseInt(after));
+            }
+            const messages = await dbFindAll(options);
             res.json(messages);
         } catch (error) {
             console.error('Error fetching messages:', error);
@@ -488,8 +494,8 @@ function startServerLogic() {
                     }
                     if (data && data.after) {
                         options.after = new Date(data.after);
-                    } else {
-                        // Default to last 2 days if no after date specified
+                    } else if (!data || !data.before) {
+                        // Default to last 2 days only if neither before nor after is specified
                         options.after = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
                     }
                     if (data && data.limit) {
