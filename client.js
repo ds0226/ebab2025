@@ -421,11 +421,6 @@ async function loadMessages(before = null) {
         const url = new URL('/api/messages', window.location.origin);
         if (before) {
             url.searchParams.append('before', before.getTime());
-        } else {
-            // Load only messages from the last 2 days for initial load
-            const twoDaysAgo = new Date();
-            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-            url.searchParams.append('after', twoDaysAgo.getTime());
         }
         url.searchParams.append('limit', MESSAGES_PER_PAGE);
         
@@ -440,18 +435,13 @@ async function loadMessages(before = null) {
         console.log('API not available, falling back to socket method:', error.message);
     }
     
-    // Fallback: Request messages from server with date filtering
+    // Fallback: Request messages from server
     console.log('Using socket fallback method...');
     return new Promise((resolve) => {
         const requestData = { limit: MESSAGES_PER_PAGE };
         
         if (before) {
             requestData.before = before.getTime();
-        } else {
-            // Load only messages from the last 2 days for initial load
-            const twoDaysAgo = new Date();
-            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-            requestData.after = twoDaysAgo.getTime();
         }
         
         socket.emit('get history', requestData);
@@ -999,10 +989,7 @@ document.addEventListener('DOMContentLoaded', () => {
         otherUserName.textContent = otherUser.toUpperCase();
         socket.emit('select user', currentUser);
         socket.emit('get presence update');
-        // Request only last 2 days of history
-        const twoDaysAgo = new Date();
-        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-        socket.emit('get history', { after: twoDaysAgo.getTime() });
+        socket.emit('get history');
         socket.emit('mark conversation read', { readerID: currentUser });
     }
     if (!presenceTickerId) {
@@ -1027,10 +1014,7 @@ function startRefreshWatchdog() {
         }
         if (stale) {
             socket.emit('get presence update');
-            // Request only last 2 days of history
-            const twoDaysAgo = new Date();
-            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-            socket.emit('get history', { after: twoDaysAgo.getTime() });
+            socket.emit('get history');
             updatePresenceDisplays();
             updateMessageTimestamps();
         }
@@ -1067,10 +1051,7 @@ socket.on('reconnect', () => {
     if (currentUser) {
         socket.emit('select user', currentUser);
         socket.emit('get presence update');
-        // Request only last 2 days of history
-        const twoDaysAgo = new Date();
-        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-        socket.emit('get history', { after: twoDaysAgo.getTime() });
+        socket.emit('get history');
     }
 });
 
