@@ -545,12 +545,8 @@ function showLoadMoreButton() {
             const oldestDate = new Date(oldestDisplayed.dataset.timestamp);
             console.log('Loading messages before:', oldestDate);
             
-            // Load older messages from server (limit to 2 days before oldest)
-            const twoDaysBeforeOldest = new Date(oldestDate);
-            twoDaysBeforeOldest.setDate(twoDaysBeforeOldest.getDate() - 2);
-            
-            // Use the loadMessages function with before and after parameters
-            const olderMessages = await loadMessages(oldestDate, twoDaysBeforeOldest);
+            // Load older messages from server (only 50 messages at a time)
+            const olderMessages = await loadMessages(oldestDate);
             
             if (olderMessages.length > 0) {
                 console.log('Loaded', olderMessages.length, 'older messages');
@@ -559,41 +555,27 @@ function showLoadMoreButton() {
                 const oldScrollHeight = messages.scrollHeight;
                 const oldScrollTop = messages.scrollTop;
                 
-                // Sort older messages by timestamp (oldest first)
-                olderMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                // Server returns messages sorted descending (newest first)
+                // Reverse to get ascending order (oldest first) for correct display
+                olderMessages.reverse();
                 
-                // Group by date
-                const messagesByDate = {};
+                // Insert older messages at the beginning in correct order (oldest first)
                 olderMessages.forEach(msg => {
                     const ts = msg.timestamp || new Date().toISOString();
                     const dateKey = getDateKey(ts);
-                    if (!messagesByDate[dateKey]) {
-                        messagesByDate[dateKey] = [];
-                    }
-                    messagesByDate[dateKey].push(msg);
-                });
-                
-                // Get dates in order (oldest first)
-                const datesInOrder = Object.keys(messagesByDate).sort();
-                
-                // Insert in reverse date order (newest date first) so they appear correctly
-                datesInOrder.reverse().forEach(dateKey => {
+                    
                     // Check if this date separator already exists
                     if (!messages.querySelector(`li.date-separator[data-date="${dateKey}"]`)) {
-                        const sampleMsg = messagesByDate[dateKey][0];
                         const dateLi = document.createElement('li');
                         dateLi.className = 'date-separator';
                         dateLi.dataset.date = dateKey;
-                        dateLi.textContent = getDateLabel(sampleMsg.timestamp);
+                        dateLi.textContent = getDateLabel(ts);
                         messages.insertBefore(dateLi, messages.firstChild);
                     }
                     
-                    // Insert messages for this date in reverse order (newest first)
-                    messagesByDate[dateKey].reverse().forEach(msg => {
-                        const element = createMessageElement(msg);
-                        messages.insertBefore(element, messages.firstChild);
-                        observeForRead(element, msg);
-                    });
+                    const element = createMessageElement(msg);
+                    messages.insertBefore(element, messages.firstChild);
+                    observeForRead(element, msg);
                 });
                 
                 // Restore scroll position (adjust for new content)
