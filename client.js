@@ -629,8 +629,8 @@ async function initChat() {
         console.log('Loaded initial messages:', initialMessages.length);
         
         if (initialMessages.length > 0) {
-            // Sort messages by timestamp ascending (oldest first)
-            initialMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            // Server returns messages sorted descending (newest first), reverse for chronological order
+            initialMessages.reverse();
             
             const fragment = document.createDocumentFragment();
             initialMessages.forEach(msg => {
