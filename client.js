@@ -24,7 +24,7 @@ let readFlushTimer = null;
 // Infinite scroll variables
 let isLoading = false;
 let hasMoreMessages = true;
-const MESSAGES_PER_PAGE = 20;
+const MESSAGES_PER_PAGE = 20; // Already 20, no change needed
 
 function getStoredOfflineStart(uid) {
     try {
