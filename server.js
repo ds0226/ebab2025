@@ -367,9 +367,14 @@ function startServerLogic() {
             const { before, after, limit = 50 } = req.query;
             const options = {
                 before: before ? new Date(parseInt(before)) : null,
-                after: after ? new Date(parseInt(after)) : null,
                 limit: parseInt(limit)
             };
+            // Default to last 2 days if no after date specified and no before date (initial load)
+            if (!before && !after) {
+                options.after = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+            } else if (after) {
+                options.after = new Date(parseInt(after));
+            }
             const messages = await dbFindAll(options);
             res.json(messages);
         } catch (error) {
@@ -420,7 +425,7 @@ function startServerLogic() {
         socket.emit('presence update', presenceData); 
 
         try {
-            const messagesHistory = (await dbFindAll({ limit: 50 })).map(m => ({ ...m, _id: String(m._id) }));
+            const messagesHistory = (await dbFindAll({ after: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), limit: 50 })).map(m => ({ ...m, _id: String(m._id) }));
             socket.emit('history', messagesHistory);
         } catch (e) {
             console.error('Error fetching history:', e);
@@ -489,6 +494,9 @@ function startServerLogic() {
                     }
                     if (data && data.after) {
                         options.after = new Date(data.after);
+                    } else if (!data || !data.before) {
+                        // Default to last 2 days only if neither before nor after is specified
+                        options.after = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
                     }
                     if (data && data.limit) {
                         options.limit = data.limit;
