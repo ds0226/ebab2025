@@ -556,27 +556,48 @@ function showLoadMoreButton() {
                 const oldScrollTop = messages.scrollTop;
                 
                 // Server returns messages sorted descending (newest first)
-                // Reverse to get ascending order (oldest first) for correct display
-                olderMessages.reverse();
+                // Sort ascending (oldest first) for correct display order
+                olderMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
                 
-                // Insert older messages at the beginning in correct order (oldest first)
+                // Create a document fragment to hold all new elements
+                const fragment = document.createDocumentFragment();
+                
+                // Group by date and add to fragment
+                const messagesByDate = {};
                 olderMessages.forEach(msg => {
                     const ts = msg.timestamp || new Date().toISOString();
                     const dateKey = getDateKey(ts);
-                    
-                    // Check if this date separator already exists
+                    if (!messagesByDate[dateKey]) {
+                        messagesByDate[dateKey] = [];
+                    }
+                    messagesByDate[dateKey].push(msg);
+                });
+                
+                // Get dates in order (oldest first)
+                const datesInOrder = Object.keys(messagesByDate).sort();
+                
+                // Add to fragment in correct order (oldest date first)
+                datesInOrder.forEach(dateKey => {
+                    // Check if this date separator already exists in messages
                     if (!messages.querySelector(`li.date-separator[data-date="${dateKey}"]`)) {
+                        const sampleMsg = messagesByDate[dateKey][0];
                         const dateLi = document.createElement('li');
                         dateLi.className = 'date-separator';
                         dateLi.dataset.date = dateKey;
-                        dateLi.textContent = getDateLabel(ts);
-                        messages.insertBefore(dateLi, messages.firstChild);
+                        dateLi.textContent = getDateLabel(sampleMsg.timestamp);
+                        fragment.appendChild(dateLi);
                     }
                     
-                    const element = createMessageElement(msg);
-                    messages.insertBefore(element, messages.firstChild);
-                    observeForRead(element, msg);
+                    // Add messages for this date in order (oldest first)
+                    messagesByDate[dateKey].forEach(msg => {
+                        const element = createMessageElement(msg);
+                        fragment.appendChild(element);
+                        observeForRead(element, msg);
+                    });
                 });
+                
+                // Insert the entire fragment at the beginning
+                messages.insertBefore(fragment, messages.firstChild);
                 
                 // Restore scroll position (adjust for new content)
                 const newScrollHeight = messages.scrollHeight;
