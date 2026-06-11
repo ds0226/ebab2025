@@ -27,7 +27,7 @@ let readFlushTimer = null;
 // Infinite scroll variables
 let isLoading = false;
 let hasMoreMessages = true;
-const MESSAGES_PER_PAGE = 50;
+const MESSAGES_PER_PAGE = 20;
 
 // FIND this code around line 982:
 if (fullHistory && fullHistory.length > 0 && fullHistory.length > recentMessages.length) {
