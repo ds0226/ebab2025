@@ -305,13 +305,11 @@ function reconcilePresence() {
         const sid = userPresence[userId].socketId;
         const sock = sid ? io.sockets.sockets.get(sid) : null;
         const connected = !!(sock && sock.connected);
-        if (!connected) {
-            if (userPresence[userId].isOnline) {
-                userPresence[userId].isOnline = false;
-                if (!userPresence[userId].lastSeen) {
-                    userPresence[userId].lastSeen = new Date().toISOString();
-                }
-            }
+        
+        // Only set offline if socket is actually disconnected
+        if (!connected && userPresence[userId].isOnline) {
+            userPresence[userId].isOnline = false;
+            userPresence[userId].lastSeen = new Date().toISOString();
             userPresence[userId].socketId = null;
             if (activeUsers[userId] && activeUsers[userId] === sid) {
                 activeUsers[userId] = null;
@@ -431,8 +429,12 @@ function startServerLogic() {
             if (activeUsers[userId] === null) {
                 activeUsers[userId] = socket.id;
                 
+                // Only set online if socket is actually connected
+                if (socket.connected) {
+                    userPresence[userId].isOnline = true;
+                }
                 userPresence[userId].socketId = socket.id;
-                recalcPresence(userId);
+                userPresence[userId].lastSeen = new Date().toISOString();
                 
                 socket.emit('user selected', true);
                 console.log(`User ${userId} is now online`);
@@ -518,14 +520,18 @@ function startServerLogic() {
             
             io.emit('chat message', msg); 
 
-            // Robust presence update: mark sender online with latest activity
+            // Update socket ID for sender (keep online as long as connected)
             const sid = msg.senderID || msg.sender;
             if (sid && userPresence[sid]) {
                 if (activeUsers[sid] === null) {
                     activeUsers[sid] = socket.id;
                 }
                 userPresence[sid].socketId = socket.id;
-                recalcPresence(sid);
+                // Only set online if socket is actually connected
+                if (socket.connected) {
+                    userPresence[sid].isOnline = true;
+                }
+                userPresence[sid].lastSeen = new Date().toISOString();
                 broadcastPresenceUpdate();
             }
 
@@ -594,10 +600,14 @@ function startServerLogic() {
                 status: 'read'
             });
 
-            // 3. Presence: mark reader online with latest activity
+            // 3. Presence: mark reader online (keep online as long as connected)
             if (rid && userPresence[rid]) {
                 userPresence[rid].socketId = socket.id;
-                recalcPresence(rid);
+                // Only set online if socket is actually connected
+                if (socket.connected) {
+                    userPresence[rid].isOnline = true;
+                }
+                userPresence[rid].lastSeen = new Date().toISOString();
                 broadcastPresenceUpdate();
             }
         });
@@ -617,7 +627,11 @@ function startServerLogic() {
             });
             if (rid && userPresence[rid]) {
                 userPresence[rid].socketId = socket.id;
-                recalcPresence(rid);
+                // Only set online if socket is actually connected
+                if (socket.connected) {
+                    userPresence[rid].isOnline = true;
+                }
+                userPresence[rid].lastSeen = new Date().toISOString();
                 broadcastPresenceUpdate();
             }
         });
@@ -655,7 +669,11 @@ function startServerLogic() {
                 }
                 if (userPresence[rid]) {
                     userPresence[rid].socketId = socket.id;
-                    recalcPresence(rid);
+                    // Only set online if socket is actually connected
+                    if (socket.connected) {
+                        userPresence[rid].isOnline = true;
+                    }
+                    userPresence[rid].lastSeen = new Date().toISOString();
                     broadcastPresenceUpdate();
                 }
             } catch (_) {}
@@ -683,7 +701,11 @@ function startServerLogic() {
             // Presence: infer receiver is the opposite of sender in a 2-user chat
             if (userPresence[receiverId]) {
                 userPresence[receiverId].socketId = socket.id;
-                recalcPresence(receiverId);
+                // Only set online if socket is actually connected
+                if (socket.connected) {
+                    userPresence[receiverId].isOnline = true;
+                }
+                userPresence[receiverId].lastSeen = new Date().toISOString();
                 broadcastPresenceUpdate();
             }
         });
@@ -707,7 +729,11 @@ function startServerLogic() {
             }
             if (userPresence[receiverId]) {
                 userPresence[receiverId].socketId = socket.id;
-                recalcPresence(receiverId);
+                // Only set online if socket is actually connected
+                if (socket.connected) {
+                    userPresence[receiverId].isOnline = true;
+                }
+                userPresence[receiverId].lastSeen = new Date().toISOString();
                 broadcastPresenceUpdate();
             }
         });
@@ -724,7 +750,11 @@ function startServerLogic() {
                     activeUsers[data.userID] = socket.id;
                 }
                 userPresence[data.userID].socketId = socket.id;
-                recalcPresence(data.userID);
+                // Only set online if socket is actually connected
+                if (socket.connected) {
+                    userPresence[data.userID].isOnline = true;
+                }
+                userPresence[data.userID].lastSeen = new Date().toISOString();
                 broadcastPresenceUpdate();
             }
         });
@@ -736,7 +766,7 @@ function startServerLogic() {
             if (disconnectedUser) {
                 activeUsers[disconnectedUser] = null;
                 
-                // Update presence tracking
+                // Update presence tracking - user is now offline
                 userPresence[disconnectedUser].isOnline = false;
                 userPresence[disconnectedUser].lastSeen = new Date().toISOString();
                 userPresence[disconnectedUser].socketId = null;
