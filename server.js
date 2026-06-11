@@ -365,7 +365,7 @@ function startServerLogic() {
     // Endpoint to get paginated messages
     app.get('/api/messages', async (req, res) => {
         try {
-            const { before, after, limit = 50 } = req.query;
+            const { before, after, limit = 20 } = req.query;
             const messages = await dbFindAll({
                 before: before ? new Date(parseInt(before)) : null,
                 after: after ? new Date(parseInt(after)) : null,
@@ -420,7 +420,7 @@ function startServerLogic() {
         socket.emit('presence update', presenceData); 
 
         try {
-            const messagesHistory = (await dbFindAll({ limit: 50 })).map(m => ({ ...m, _id: String(m._id) }));
+            const messagesHistory = (await dbFindAll({ limit: 20 })).map(m => ({ ...m, _id: String(m._id) }));
             socket.emit('history', messagesHistory);
         } catch (e) {
             console.error('Error fetching history:', e);

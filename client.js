@@ -24,7 +24,7 @@ let readFlushTimer = null;
 // Infinite scroll variables
 let isLoading = false;
 let hasMoreMessages = true;
-const MESSAGES_PER_PAGE = 50;
+const MESSAGES_PER_PAGE = 20;
 
 function getStoredOfflineStart(uid) {
     try {
@@ -518,13 +518,13 @@ function showLoadMoreButton() {
         loadMoreBtn.style.cssText = `
             display: block;
             margin: 10px auto;
-            padding: 8px 16px;
+            padding: 6px 12px;
             background-color: #2a3942;
             color: #e9edef;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             transition: background-color 0.2s;
         `;
         
@@ -545,7 +545,7 @@ function showLoadMoreButton() {
             const oldestDate = new Date(oldestDisplayed.dataset.timestamp);
             console.log('Loading messages before:', oldestDate);
             
-            // Load older messages from server (only 50 messages at a time)
+            // Load older messages from server (only 20 messages at a time)
             const olderMessages = await loadMessages(oldestDate);
             
             if (olderMessages.length > 0) {
@@ -556,8 +556,8 @@ function showLoadMoreButton() {
                 const oldScrollTop = messages.scrollTop;
                 
                 // Server returns messages sorted descending (newest first)
-                // Sort ascending (oldest first) for correct display order
-                olderMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                // Reverse to get chronological order (oldest first)
+                olderMessages.reverse();
                 
                 // Create a document fragment to hold all new elements
                 const fragment = document.createDocumentFragment();
@@ -678,8 +678,12 @@ function initInfiniteScroll() {
                 console.log('Loaded', newMessages.length, 'older messages');
                 const fragment = document.createDocumentFragment();
                 
-                // Add messages in reverse order (oldest first)
-                newMessages.reverse().forEach(msg => {
+                // Server returns messages sorted descending (newest first)
+                // Reverse to get chronological order (oldest first)
+                newMessages.reverse();
+                
+                // Add messages in chronological order
+                newMessages.forEach(msg => {
                     const element = createMessageElement(msg);
                     fragment.appendChild(element);
                     observeForRead(element, msg);
@@ -696,7 +700,7 @@ function initInfiniteScroll() {
                 const newScrollHeight = messages.scrollHeight;
                 messages.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
                 
-                // Show "Load more" button if there are more messages
+                // Update has more messages flag
                 if (newMessages.length < MESSAGES_PER_PAGE) {
                     hasMoreMessages = false;
                 }
@@ -748,11 +752,10 @@ socket.on('history', (messagesHistory) => {
     fullHistory = messagesHistory;
     console.log('Stored fullHistory:', fullHistory.length, 'messages');
     lastActivityTs = Date.now();
-    messagesHistory.sort((a, b) => {
-        const ta = new Date(a.timestamp || 0).getTime();
-        const tb = new Date(b.timestamp || 0).getTime();
-        return ta - tb;
-    });
+    
+    // Server returns messages sorted descending (newest first)
+    // Reverse to get chronological order (oldest first)
+    messagesHistory.reverse();
     
     console.log(`📋 Displaying ${messagesHistory.length} messages`);
     
