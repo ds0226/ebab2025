@@ -555,6 +555,10 @@ function showLoadMoreButton() {
             if (olderMessages.length > 0) {
                 console.log('Loaded', olderMessages.length, 'older messages');
                 
+                // Store current scroll position
+                const oldScrollHeight = messages.scrollHeight;
+                const oldScrollTop = messages.scrollTop;
+                
                 // Get all currently displayed messages
                 const currentMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'))
                     .map(li => {
@@ -581,8 +585,9 @@ function showLoadMoreButton() {
                     observeForRead(element, msg);
                 });
                 
-                // Scroll to bottom
-                scrollToBottom();
+                // Restore scroll position (adjust for new content)
+                const newScrollHeight = messages.scrollHeight;
+                messages.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
                 
                 // Show "Load more" button if there are more messages
                 if (olderMessages.length === MESSAGES_PER_PAGE) {
@@ -613,8 +618,13 @@ async function initChat() {
         console.log('Loaded initial messages:', initialMessages.length);
         
         if (initialMessages.length > 0) {
+            // Sort messages by timestamp ascending (oldest first)
+            initialMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
             const fragment = document.createDocumentFragment();
-            initialMessages.reverse().forEach(msg => {
+            initialMessages.forEach(msg => {
+                const ts = msg.timestamp || new Date().toISOString();
+                ensureDateStamp(ts);
                 const element = createMessageElement(msg);
                 fragment.appendChild(element);
                 observeForRead(element, msg);
