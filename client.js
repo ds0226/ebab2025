@@ -498,119 +498,121 @@ function showLoadMoreButton() {
         return;
     }
     
+    // Check if button already exists
     let loadMoreBtn = document.getElementById('load-more-btn');
-    if (!loadMoreBtn) {
-        console.log('Creating Load Older Messages button');
-        loadMoreBtn = document.createElement('button');
-        loadMoreBtn.id = 'load-more-btn';
-        loadMoreBtn.textContent = 'Load Older Messages';
-        loadMoreBtn.style.cssText = `
-            display: block;
-            margin: 10px auto;
-            padding: 6px 12px;
-            background-color: #2a3942;
-            color: #e9edef;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.75rem;
-            transition: background-color 0.2s;
-        `;
-        
-        loadMoreBtn.addEventListener('click', async () => {
-            console.log('Load Older Messages button clicked!');
-            loadMoreBtn.remove();
-            
-            // Save current scroll height before loading
-            const previousScrollHeight = messages.scrollHeight;
-            
-            // Load next page
-            const nextPage = currentPage + 1;
-            const olderMessages = await loadMessages(nextPage);
-            
-            if (olderMessages.length > 0) {
-                console.log('Loaded', olderMessages.length, 'older messages on page', nextPage);
-                
-                // Deduplicate messages using Set with _id
-                const displayedMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
-                const existingIds = new Set(displayedMessages.map(li => li.dataset.id));
-                const uniqueOlderMessages = olderMessages.filter(msg => msg._id && !existingIds.has(String(msg._id)));
-                
-                if (uniqueOlderMessages.length === 0) {
-                    console.log('No new unique messages to add');
-                    return;
-                }
-                
-                console.log('Adding', uniqueOlderMessages.length, 'unique messages');
-                
-                // Server returns messages in chronological order (oldest first)
-                // No need to reverse
-                
-                // Create a document fragment to hold all new elements
-                const fragment = document.createDocumentFragment();
-                
-                // Group by date and add to fragment
-                const messagesByDate = {};
-                uniqueOlderMessages.forEach(msg => {
-                    const ts = msg.timestamp || new Date().toISOString();
-                    const dateKey = getDateKey(ts);
-                    if (!messagesByDate[dateKey]) {
-                        messagesByDate[dateKey] = [];
-                    }
-                    messagesByDate[dateKey].push(msg);
-                });
-                
-                // Get dates in chronological order (oldest first)
-                const datesInOrder = Object.keys(messagesByDate).sort((a, b) => {
-                    const dateA = new Date(a);
-                    const dateB = new Date(b);
-                    return dateA - dateB;
-                });
-                
-                // Add to fragment in correct order (oldest date first)
-                datesInOrder.forEach(dateKey => {
-                    // Check if this date separator already exists in messages
-                    if (!messages.querySelector(`li.date-separator[data-date="${dateKey}"]`)) {
-                        const sampleMsg = messagesByDate[dateKey][0];
-                        const dateLi = document.createElement('li');
-                        dateLi.className = 'date-separator';
-                        dateLi.dataset.date = dateKey;
-                        dateLi.textContent = getDateLabel(sampleMsg.timestamp);
-                        fragment.appendChild(dateLi);
-                    }
-                    
-                    // Add messages for this date in order (oldest first)
-                    messagesByDate[dateKey].forEach(msg => {
-                        const element = createMessageElement(msg);
-                        fragment.appendChild(element);
-                        observeForRead(element, msg);
-                    });
-                });
-                
-                // Insert the entire fragment at the beginning
-                messages.insertBefore(fragment, messages.firstChild);
-                
-                // Adjust scroll position to prevent infinite loop
-                setTimeout(() => {
-                    messages.scrollTop = messages.scrollHeight - previousScrollHeight;
-                }, 0);
-                
-                // Update page and show "Load more" button if there are more messages
-                currentPage = nextPage;
-                if (uniqueOlderMessages.length === MESSAGES_PER_PAGE) {
-                    showLoadMoreButton();
-                }
-            } else {
-                console.log('No more older messages to load');
-            }
-        });
-        
-        console.log('Inserting Load Older Messages button into messages');
-        messages.insertBefore(loadMoreBtn, messages.firstChild);
-        console.log('Load Older Messages button inserted successfully');
-    } else {
-        console.log('Load Older Messages button already exists');
+    if (loadMoreBtn) {
+        console.log('Load more button already exists, skipping');
+        return;
     }
+    
+    console.log('Creating Load Older Messages button');
+    loadMoreBtn = document.createElement('button');
+    loadMoreBtn.id = 'load-more-btn';
+    loadMoreBtn.textContent = 'Load Older Messages';
+    loadMoreBtn.style.cssText = `
+        display: block;
+        margin: 10px auto;
+        padding: 6px 12px;
+        background-color: #2a3942;
+        color: #e9edef;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.75rem;
+        transition: background-color 0.2s;
+    `;
+    
+    loadMoreBtn.addEventListener('click', async () => {
+        console.log('Load Older Messages button clicked!');
+        loadMoreBtn.remove();
+        
+        // Save current scroll height before loading
+        const previousScrollHeight = messages.scrollHeight;
+        
+        // Load next page
+        const nextPage = currentPage + 1;
+        const olderMessages = await loadMessages(nextPage);
+        
+        if (olderMessages.length > 0) {
+            console.log('Loaded', olderMessages.length, 'older messages on page', nextPage);
+            
+            // Deduplicate messages using Set with _id
+            const displayedMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
+            const existingIds = new Set(displayedMessages.map(li => li.dataset.id));
+            const uniqueOlderMessages = olderMessages.filter(msg => msg._id && !existingIds.has(String(msg._id)));
+            
+            if (uniqueOlderMessages.length === 0) {
+                console.log('No new unique messages to add');
+                return;
+            }
+            
+            console.log('Adding', uniqueOlderMessages.length, 'unique messages');
+            
+            // Server returns messages in chronological order (oldest first)
+            // No need to reverse
+            
+            // Create a document fragment to hold all new elements
+            const fragment = document.createDocumentFragment();
+            
+            // Group by date and add to fragment
+            const messagesByDate = {};
+            uniqueOlderMessages.forEach(msg => {
+                const ts = msg.timestamp || new Date().toISOString();
+                const dateKey = getDateKey(ts);
+                if (!messagesByDate[dateKey]) {
+                    messagesByDate[dateKey] = [];
+                }
+                messagesByDate[dateKey].push(msg);
+            });
+            
+            // Get dates in chronological order (oldest first)
+            const datesInOrder = Object.keys(messagesByDate).sort((a, b) => {
+                const dateA = new Date(a);
+                const dateB = new Date(b);
+                return dateA - dateB;
+            });
+            
+            // Add to fragment in correct order (oldest date first)
+            datesInOrder.forEach(dateKey => {
+                // Check if this date separator already exists in messages
+                if (!messages.querySelector(`li.date-separator[data-date="${dateKey}"]`)) {
+                    const sampleMsg = messagesByDate[dateKey][0];
+                    const dateLi = document.createElement('li');
+                    dateLi.className = 'date-separator';
+                    dateLi.dataset.date = dateKey;
+                    dateLi.textContent = getDateLabel(sampleMsg.timestamp);
+                    fragment.appendChild(dateLi);
+                }
+                
+                // Add messages for this date in order (oldest first)
+                messagesByDate[dateKey].forEach(msg => {
+                    const element = createMessageElement(msg);
+                    fragment.appendChild(element);
+                    observeForRead(element, msg);
+                });
+            });
+            
+            // Insert the entire fragment at the beginning
+            messages.insertBefore(fragment, messages.firstChild);
+            
+            // Adjust scroll position to prevent infinite loop
+            setTimeout(() => {
+                messages.scrollTop = messages.scrollHeight - previousScrollHeight;
+            }, 0);
+            
+            // Update page and show "Load more" button if there are more messages
+            currentPage = nextPage;
+            if (uniqueOlderMessages.length === MESSAGES_PER_PAGE) {
+                showLoadMoreButton();
+            }
+        } else {
+            console.log('No more older messages to load');
+        }
+    });
+    
+    console.log('Inserting Load Older Messages button into messages');
+    messages.insertBefore(loadMoreBtn, messages.firstChild);
+    console.log('Load Older Messages button inserted successfully');
 }
 
 // Initialize chat with initial messages
@@ -833,7 +835,10 @@ socket.on('history', (messagesHistory) => {
     
     // Show load more button if we received a full page (indicates there may be more)
     if (messagesHistory && messagesHistory.length === MESSAGES_PER_PAGE) {
+        hasMoreMessages = true; // Explicitly set hasMoreMessages to true
         showLoadMoreButton();
+    } else {
+        hasMoreMessages = false; // Explicitly set hasMoreMessages to false
     }
     
     // Initialize infinite scroll if not already initialized
