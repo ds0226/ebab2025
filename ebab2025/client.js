@@ -711,12 +711,17 @@ socket.on('history', (messagesHistory) => {
         fullHistory = [...messagesHistory, ...fullHistory];
         console.log('Updated fullHistory:', fullHistory.length, 'messages');
         
-        // Sort new messages chronologically (oldest first)
-        messagesHistory.sort((a, b) => {
+        // Sort fullHistory chronologically (oldest first)
+        fullHistory.sort((a, b) => {
             const ta = new Date(a.timestamp || 0).getTime();
             const tb = new Date(b.timestamp || 0).getTime();
             return ta - tb;
         });
+        
+        // Remove all existing date separators to prevent duplicates
+        const existingSeparators = messages.querySelectorAll('.date-separator');
+        existingSeparators.forEach(sep => sep.remove());
+        console.log('DEBUG: Removed', existingSeparators.length, 'existing date separators');
         
         // Prepend messages to DOM (insert at top)
         const fragment = document.createDocumentFragment();
@@ -754,6 +759,32 @@ socket.on('history', (messagesHistory) => {
         messages.insertBefore(fragment, messages.firstChild);
         
         console.log('DEBUG: DOM message count after prepending:', messages.querySelectorAll('li:not(.date-separator)').length);
+        
+        // Rebuild all date separators from fullHistory to ensure no duplicates
+        const allSeparators = messages.querySelectorAll('.date-separator');
+        allSeparators.forEach(sep => sep.remove());
+        
+        const newFragment = document.createDocumentFragment();
+        let lastDateKeyFull = null;
+        
+        fullHistory.forEach((msg) => {
+            const ts = msg.timestamp || new Date().toISOString();
+            const dateKey = getDateKey(ts);
+            
+            // Add date separator if needed
+            if (dateKey !== lastDateKeyFull) {
+                const dateLi = document.createElement('li');
+                dateLi.className = 'date-separator';
+                dateLi.dataset.date = dateKey;
+                dateLi.textContent = getDateLabel(ts);
+                newFragment.appendChild(dateLi);
+                lastDateKeyFull = dateKey;
+            }
+        });
+        
+        // Insert all date separators at the top
+        messages.insertBefore(newFragment, messages.firstChild);
+        console.log('DEBUG: Rebuilt date separators from fullHistory');
         
         // Adjust scroll position to maintain user's view
         const scrollHeightBefore = messages.scrollHeight;
