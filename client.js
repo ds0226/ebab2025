@@ -581,8 +581,12 @@ function showLoadMoreButton() {
                     messagesByDate[dateKey].push(msg);
                 });
                 
-                // Get dates in order (oldest first)
-                const datesInOrder = Object.keys(messagesByDate).sort();
+                // Get dates in chronological order (oldest first)
+                const datesInOrder = Object.keys(messagesByDate).sort((a, b) => {
+                    const dateA = new Date(a);
+                    const dateB = new Date(b);
+                    return dateA - dateB;
+                });
                 
                 // Add to fragment in correct order (oldest date first)
                 datesInOrder.forEach(dateKey => {
@@ -607,9 +611,9 @@ function showLoadMoreButton() {
                 // Insert the entire fragment at the beginning
                 messages.insertBefore(fragment, messages.firstChild);
                 
-                // Restore scroll position (adjust for new content)
+                // Restore scroll position (adjust for new content, add 1px buffer)
                 const newScrollHeight = messages.scrollHeight;
-                messages.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+                messages.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight) + 1;
                 
                 // Show "Load more" button if there are more messages
                 if (uniqueOlderMessages.length === MESSAGES_PER_PAGE) {
@@ -724,8 +728,12 @@ function initInfiniteScroll() {
                     messagesByDate[dateKey].push(msg);
                 });
                 
-                // Get dates in order (oldest first)
-                const datesInOrder = Object.keys(messagesByDate).sort();
+                // Get dates in chronological order (oldest first)
+                const datesInOrder = Object.keys(messagesByDate).sort((a, b) => {
+                    const dateA = new Date(a);
+                    const dateB = new Date(b);
+                    return dateA - dateB;
+                });
                 
                 // Add to fragment in correct order (oldest date first)
                 datesInOrder.forEach(dateKey => {
@@ -754,9 +762,9 @@ function initInfiniteScroll() {
                 // Insert new messages at the beginning
                 messages.insertBefore(fragment, messages.firstChild);
                 
-                // Adjust scroll to maintain position
+                // Adjust scroll to maintain position (add 1px buffer to prevent re-trigger)
                 const newScrollHeight = messages.scrollHeight;
-                messages.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+                messages.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight) + 1;
                 
                 // Update has more messages flag
                 if (uniqueNewMessages.length < MESSAGES_PER_PAGE) {
