@@ -538,149 +538,27 @@ function showLoadMoreButton() {
         
         loadMoreBtn.addEventListener('click', () => {
             console.log('Load Previous Day button clicked!');
-            console.log('Full history available:', fullHistory ? fullHistory.length : 'none');
             loadMoreBtn.remove();
             
-            if (fullHistory && fullHistory.length > 0) {
-                console.log('Full history has', fullHistory.length, 'messages');
-                
-                // Get all currently displayed message IDs
-                const displayedIds = Array.from(messages.querySelectorAll('li')).map(li => li.dataset.id);
-                console.log('Currently displayed messages:', displayedIds.length);
-                
-                // Find messages not yet displayed
-                const notDisplayed = fullHistory.filter(msg => 
-                    !displayedIds.includes(msg._id)
-                );
-                console.log('Messages not displayed:', notDisplayed.length);
-                
-                if (notDisplayed.length > 0) {
-                    // Get the oldest currently displayed message to determine the day boundary
-                    const displayedMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
-                    console.log('Displayed messages found:', displayedMessages.length);
-                    let targetDate = null;
+            // Get the oldest currently displayed message timestamp
+            const displayedMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
+            if (displayedMessages.length > 0) {
+                const oldestDisplayedId = displayedMessages[0].dataset.id;
+                const oldestDisplayedMsg = fullHistory.find(msg => msg._id === oldestDisplayedId);
+                if (oldestDisplayedMsg) {
+                    const beforeTimestamp = oldestDisplayedMsg.timestamp;
+                    console.log('Requesting older messages before:', beforeTimestamp);
                     
-                    if (displayedMessages.length > 0) {
-                        const oldestDisplayedId = displayedMessages[0].dataset.id;
-                        console.log('Oldest displayed ID:', oldestDisplayedId);
-                        const oldestDisplayedMsg = fullHistory.find(msg => msg._id === oldestDisplayedId);
-                        if (oldestDisplayedMsg) {
-                            targetDate = new Date(oldestDisplayedMsg.timestamp);
-                            console.log('Oldest displayed message date:', targetDate);
-                            targetDate.setHours(0, 0, 0, 0); // Start of that day
-                            console.log('Target date (start of day):', targetDate);
-                        }
-                    }
+                    // Show loading indicator
+                    showLoader(true);
                     
-                    // If no displayed messages, get the newest message and go back one day
-                    if (!targetDate && fullHistory.length > 0) {
-                        const newestMsg = fullHistory.reduce((newest, msg) => 
-                            new Date(msg.timestamp) > new Date(newest.timestamp) ? msg : newest
-                        );
-                        targetDate = new Date(newestMsg.timestamp);
-                        targetDate.setDate(targetDate.getDate() - 1); // Go back one day
-                        targetDate.setHours(0, 0, 0, 0);
-                    }
-                    
-                    // Find all messages from the target day
-                    const nextDay = new Date(targetDate);
-                    nextDay.setDate(nextDay.getDate() + 1);
-                    console.log('Searching for messages between', targetDate, 'and', nextDay);
-                    
-                    const dayMessages = notDisplayed.filter(msg => {
-                        const msgDate = new Date(msg.timestamp);
-                        return msgDate >= targetDate && msgDate < nextDay;
-                    });
-                    console.log('Found messages for target day:', dayMessages.length);
-                    
-                    // If no messages from that day, try the previous day
-                    let toDisplay = dayMessages;
-                    let searchDate = new Date(targetDate);
-                    let attempts = 0;
-                    
-                    while (toDisplay.length === 0 && searchDate >= new Date(0) && attempts < 30) {
-                        attempts++;
-                        searchDate.setDate(searchDate.getDate() - 1);
-                        const searchNextDay = new Date(searchDate);
-                        searchNextDay.setDate(searchNextDay.getDate() + 1);
-                        
-                        console.log(`Attempt ${attempts}: Searching for messages between ${searchDate} and ${searchNextDay}`);
-                        
-                        toDisplay = notDisplayed.filter(msg => {
-                            const msgDate = new Date(msg.timestamp);
-                            return msgDate >= searchDate && msgDate < searchNextDay;
-                        });
-                        
-                        if (toDisplay.length > 0) {
-                            console.log(`Found ${toDisplay.length} messages on attempt ${attempts} for ${searchDate.toDateString()}`);
-                        }
-                    }
-                    
-                    console.log('Will display', toDisplay.length, 'messages from', searchDate.toDateString());
-                    
-                    // Rebuild the entire message list with proper chronological order
-                    // Get all currently displayed messages
-                    const currentMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'))
-                        .map(li => {
-                            const msgId = li.dataset.id;
-                            return fullHistory.find(msg => msg._id === msgId);
-                        })
-                        .filter(msg => msg);
-                    
-                    // Combine with new messages
-                    const allMessages = [...toDisplay, ...currentMessages];
-                    
-                    // Sort all messages by date (oldest to newest)
-                    allMessages.sort((a, b) => 
-                        new Date(a.timestamp) - new Date(b.timestamp)
-                    );
-                    
-                    // Clear and rebuild the entire message list
-                    messages.innerHTML = '';
-                    
-                    // Render all messages in proper order
-                    allMessages.forEach(msg => {
-                        const ts = msg.timestamp || new Date().toISOString();
-                        
-                        // Add date separator if needed
-                        const dateKey = getDateKey(ts);
-                        const existingDateSep = messages.querySelector(`li.date-separator[data-date="${dateKey}"]`);
-                        
-                        if (!existingDateSep) {
-                            const dateLi = document.createElement('li');
-                            dateLi.className = 'date-separator';
-                            dateLi.dataset.date = dateKey;
-                            dateLi.textContent = getDateLabel(ts);
-                            messages.appendChild(dateLi);
-                        }
-                        
-                        // Create and append message
-                        const element = createMessageElement(msg);
-                        messages.appendChild(element);
-                        
-                        // Set up read observer
-                        observeForRead(element, msg);
-                    });
-                    
-                    // Scroll to bottom to maintain position
-                    scrollToBottom();
-                    
-                    // Check if there are more days available
-                    const remainingMessages = notDisplayed.filter(msg => 
-                        !toDisplay.some(displayedMsg => displayedMsg._id === msg._id)
-                    );
-                    
-                    if (remainingMessages.length > 0) {
-                        console.log('More days available, showing button again');
-                        showLoadMoreButton();
-                    } else {
-                        console.log('No more days to load');
-                    }
-                } else {
-                    console.log('All messages are already displayed');
+                    // Request next page from server via socket
+                    socket.emit('get history', { before: beforeTimestamp, limit: 20 });
                 }
             } else {
-                console.log('No full history available');
+                console.log('No messages displayed, requesting first page');
+                showLoader(true);
+                socket.emit('get history', { limit: 20 });
             }
         });
         
