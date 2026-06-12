@@ -687,9 +687,6 @@ function showLoadMoreButton() {
         console.log('Inserting Load Previous Day button into messages');
         messages.insertBefore(loadMoreBtn, messages.firstChild);
         console.log('Load Previous Day button inserted successfully');
-    } else {
-        console.log('Load Previous Day button already exists');
-    }
 }
 
 // Initialize chat with initial messages
