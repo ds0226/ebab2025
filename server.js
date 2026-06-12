@@ -488,23 +488,44 @@ function startServerLogic() {
         // --- Get History (for periodic refresh) ---
         socket.on('get history', async (data) => {
                 try {
-                    console.log("SERVER DEBUG: received get history with data:", data);
-                    const options = { limit: 20, page: 1 }; // Default to 20 messages, page 1
+                    console.log("SERVER LOG: received get history with data:", data);
+                    
+                    let query = {};
                     if (data && data.before) {
-                        options.before = new Date(data.before);
-                        console.log("SERVER DEBUG: before parameter set to:", options.before);
+                        // Use string comparison for ISO timestamps
+                        query.timestamp = { $lt: data.before };
+                        console.log("SERVER LOG: Pagination active. Querying before timestamp:", data.before);
                     }
-                    if (data && data.after) {
-                        options.after = new Date(data.after);
+                    
+                    let messagesHistory;
+                    if (useMemoryStore || !messagesCollection) {
+                        // In-memory fallback
+                        messagesHistory = [...messagesMemory];
+                        if (data && data.before) {
+                            messagesHistory = messagesHistory.filter(msg => new Date(msg.timestamp) < new Date(data.before));
+                        }
+                        messagesHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                        if (data && data.limit) {
+                            messagesHistory = messagesHistory.slice(0, data.limit);
+                        } else {
+                            messagesHistory = messagesHistory.slice(0, 20);
+                        }
+                    } else {
+                        // Direct MongoDB query
+                        messagesHistory = await messagesCollection
+                            .find(query)
+                            .sort({ timestamp: -1 })
+                            .limit(data && data.limit ? data.limit : 20)
+                            .toArray();
                     }
-                    if (data && data.limit) {
-                        options.limit = data.limit;
+                    
+                    messagesHistory = messagesHistory.map(m => ({ ...m, _id: String(m._id) }));
+                    console.log("SERVER LOG: returning", messagesHistory.length, "messages");
+                    if (messagesHistory.length > 0) {
+                        console.log("SERVER LOG: first message timestamp:", messagesHistory[0].timestamp);
+                        console.log("SERVER LOG: last message timestamp:", messagesHistory[messagesHistory.length - 1].timestamp);
                     }
-                    if (data && data.page) {
-                        options.page = data.page;
-                    }
-                    const messagesHistory = (await dbFindAll(options)).map(m => ({ ...m, _id: String(m._id) }));
-                    console.log("SERVER DEBUG: returning", messagesHistory.length, "messages");
+                    
                     // Reverse to chronological order (oldest first) before sending
                     const chronologicalMessages = messagesHistory.reverse();
                     socket.emit('history', chronologicalMessages);

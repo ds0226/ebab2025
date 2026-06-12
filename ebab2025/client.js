@@ -702,6 +702,9 @@ socket.on('history', (messagesHistory) => {
     
     if (isPagination) {
         console.log('📄 Pagination response - prepending messages');
+        console.log('DEBUG: Received', messagesHistory.length, 'messages from server');
+        console.log('DEBUG: Message IDs received:', messagesHistory.map(m => m._id));
+        console.log('DEBUG: Message timestamps received:', messagesHistory.map(m => m.timestamp));
         console.log('DEBUG: DOM message count before prepending:', messages.querySelectorAll('li:not(.date-separator)').length);
         
         // Prepend new messages to fullHistory
