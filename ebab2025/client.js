@@ -707,8 +707,14 @@ socket.on('history', (messagesHistory) => {
         console.log('DEBUG: Message timestamps received:', messagesHistory.map(m => m.timestamp));
         console.log('DEBUG: DOM message count before prepending:', messages.querySelectorAll('li:not(.date-separator)').length);
         
-        // Prepend new messages to fullHistory
-        fullHistory = [...messagesHistory, ...fullHistory];
+        // Filter out duplicates before updating fullHistory
+        const uniqueNewMessages = messagesHistory.filter(
+            newMsg => !fullHistory.some(existingMsg => existingMsg._id === newMsg._id)
+        );
+        console.log('DEBUG: Filtered to', uniqueNewMessages.length, 'unique messages from', messagesHistory.length, 'received');
+        
+        // Prepend unique new messages to fullHistory
+        fullHistory = [...uniqueNewMessages, ...fullHistory];
         console.log('Updated fullHistory:', fullHistory.length, 'messages');
         
         // Sort fullHistory chronologically (oldest first)
@@ -728,7 +734,7 @@ socket.on('history', (messagesHistory) => {
         let lastDateKey = null;
         let prependedCount = 0;
         
-        messagesHistory.forEach((msg) => {
+        uniqueNewMessages.forEach((msg) => {
             if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
                 const ts = msg.timestamp || new Date().toISOString();
                 const dateKey = getDateKey(ts);
