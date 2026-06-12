@@ -431,10 +431,14 @@ async function loadMessages(before = null) {
         console.log('API not available, falling back to socket method:', error.message);
     }
     
-    // Fallback: Request all messages and filter client-side
+    // Fallback: Request messages with limit
     console.log('Using socket fallback method...');
     return new Promise((resolve) => {
-        socket.emit('get history');
+        const requestData = { limit: MESSAGES_PER_PAGE };
+        if (before) {
+            requestData.before = before.getTime();
+        }
+        socket.emit('get history', requestData);
         
         // Set up a one-time listener for the history
         const handleHistory = (messagesHistory) => {
