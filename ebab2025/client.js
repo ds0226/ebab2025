@@ -768,31 +768,31 @@ socket.on('history', (messagesHistory) => {
         
         // Only rebuild date separators if new messages were actually added
         if (prependedCount > 0) {
-            // Rebuild all date separators from fullHistory to ensure no duplicates
+            // Remove all existing date separators
             const allSeparators = messages.querySelectorAll('.date-separator');
             allSeparators.forEach(sep => sep.remove());
+            console.log('DEBUG: Removed', allSeparators.length, 'existing date separators');
             
-            const newFragment = document.createDocumentFragment();
-            let lastDateKeyFull = null;
+            // Loop through all message bubbles in chronological order and insert date separators
+            const allBubbles = messages.querySelectorAll('li.message-bubble[data-timestamp]');
+            let lastDateKey = null;
             
-            fullHistory.forEach((msg) => {
-                const ts = msg.timestamp || new Date().toISOString();
+            allBubbles.forEach((bubble) => {
+                const ts = bubble.dataset.timestamp;
                 const dateKey = getDateKey(ts);
                 
-                // Add date separator if needed
-                if (dateKey !== lastDateKeyFull) {
+                // Add date separator if date changed
+                if (dateKey !== lastDateKey) {
                     const dateLi = document.createElement('li');
                     dateLi.className = 'date-separator';
                     dateLi.dataset.date = dateKey;
                     dateLi.textContent = getDateLabel(ts);
-                    newFragment.appendChild(dateLi);
-                    lastDateKeyFull = dateKey;
+                    bubble.parentNode.insertBefore(dateLi, bubble);
+                    lastDateKey = dateKey;
                 }
             });
             
-            // Insert all date separators at the top
-            messages.insertBefore(newFragment, messages.firstChild);
-            console.log('DEBUG: Rebuilt date separators from fullHistory');
+            console.log('DEBUG: Rebuilt date separators by iterating through DOM bubbles');
         } else {
             console.log('⚠️ No unique messages to prepend. Skipping date separator rebuild.');
         }
