@@ -160,7 +160,7 @@ async function connectDB() {
 }
 
 async function dbFindAll(options = {}) {
-    const { before = null, after = null, limit = null } = options;
+    const { before = null, after = null, limit = null, page = 1 } = options;
     let query = {};
     
     // If before date is provided, only get messages before that date
@@ -192,6 +192,13 @@ async function dbFindAll(options = {}) {
         }
         // Sort by timestamp descending (newest first)
         results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        // Apply skip for pagination
+        const skip = (page - 1) * (limit || 20);
+        if (skip > 0) {
+            results = results.slice(skip);
+        }
+        
         // Apply limit if specified
         if (limit) {
             results = results.slice(0, limit);
@@ -203,6 +210,12 @@ async function dbFindAll(options = {}) {
     let cursor = messagesCollection.find(query)
         .sort({ timestamp: -1 }) // Sort by timestamp descending
         .hint({ timestamp: 1 }); // Use timestamp index
+    
+    // Apply skip for pagination
+    const skip = (page - 1) * (limit || 20);
+    if (skip > 0) {
+        cursor = cursor.skip(skip);
+    }
         
     if (limit) {
         cursor = cursor.limit(limit);
@@ -365,11 +378,12 @@ function startServerLogic() {
     // Endpoint to get paginated messages
     app.get('/api/messages', async (req, res) => {
         try {
-            const { before, after, limit = 20 } = req.query;
+            const { before, after, limit = 20, page = 1 } = req.query;
             const messages = await dbFindAll({
                 before: before ? new Date(parseInt(before)) : null,
                 after: after ? new Date(parseInt(after)) : null,
-                limit: parseInt(limit)
+                limit: parseInt(limit),
+                page: parseInt(page)
             });
             res.json(messages);
         } catch (error) {
@@ -492,6 +506,9 @@ function startServerLogic() {
                     }
                     if (data && data.limit) {
                         options.limit = data.limit;
+                    }
+                    if (data && data.page) {
+                        options.page = data.page;
                     }
                     const messagesHistory = (await dbFindAll(options)).map(m => ({ ...m, _id: String(m._id) }));
                     socket.emit('history', messagesHistory);

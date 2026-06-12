@@ -24,6 +24,7 @@ let readFlushTimer = null;
 // Infinite scroll variables
 let isLoading = false;
 let hasMoreMessages = true;
+let currentPage = 1; // Current page for pagination
 const MESSAGES_PER_PAGE = 20; // Already 20, no change needed
 
 function getStoredOfflineStart(uid) {
@@ -409,29 +410,24 @@ function renderMessage(messageData) {
 }
 
 // --- Message Loading and Infinite Scroll ---
-async function loadMessages(before = null, after = null) {
+async function loadMessages(page = 1) {
     if (isLoading || !hasMoreMessages) return [];
     
     isLoading = true;
     showLoadingIndicator(true);
     
     try {
-        // Try the new API first
-        console.log('Trying API method...');
+        // Try the new API first with pagination
+        console.log('Trying API method with page:', page);
         const url = new URL('/api/messages', window.location.origin);
-        if (before) {
-            url.searchParams.append('before', before.getTime());
-        }
-        if (after) {
-            url.searchParams.append('after', after.getTime());
-        }
+        url.searchParams.append('page', page);
         url.searchParams.append('limit', MESSAGES_PER_PAGE);
         
         const response = await fetch(url);
         if (response.ok) {
             const newMessages = await response.json();
             hasMoreMessages = newMessages.length === MESSAGES_PER_PAGE;
-            console.log('API method succeeded, loaded', newMessages.length, 'messages');
+            console.log('API method succeeded, loaded', newMessages.length, 'messages on page', page);
             return newMessages;
         }
     } catch (error) {
@@ -441,14 +437,7 @@ async function loadMessages(before = null, after = null) {
     // Fallback: Request messages from server
     console.log('Using socket fallback method...');
     return new Promise((resolve) => {
-        const requestData = { limit: MESSAGES_PER_PAGE };
-        
-        if (before) {
-            requestData.before = before.getTime();
-        }
-        if (after) {
-            requestData.after = after.getTime();
-        }
+        const requestData = { limit: MESSAGES_PER_PAGE, page: page };
         
         socket.emit('get history', requestData);
         
@@ -626,9 +615,13 @@ async function initChat() {
         // Clear existing messages
         messages.innerHTML = '';
         
+        // Reset pagination
+        currentPage = 1;
+        hasMoreMessages = true;
+        
         console.log('Initializing chat, loading messages...');
-        // Load initial messages (last 2 days)
-        const initialMessages = await loadMessages();
+        // Load initial messages (page 1)
+        const initialMessages = await loadMessages(currentPage);
         console.log('Loaded initial messages:', initialMessages.length);
         
         if (initialMessages.length > 0) {
@@ -667,15 +660,12 @@ function initInfiniteScroll() {
         
         // Load more when user scrolls near the top (within 200px)
         if (scrollTop < 200 && !isLoading && hasMoreMessages) {
-            const firstMessage = messages.querySelector('li');
-            if (!firstMessage) return;
-            
-            const firstMessageDate = new Date(firstMessage.dataset.timestamp);
-            console.log('Loading older messages before:', firstMessageDate);
-            const newMessages = await loadMessages(firstMessageDate);
+            currentPage++; // Increment page number
+            console.log('Loading page', currentPage);
+            const newMessages = await loadMessages(currentPage);
             
             if (newMessages.length > 0) {
-                console.log('Loaded', newMessages.length, 'older messages');
+                console.log('Loaded', newMessages.length, 'messages on page', currentPage);
                 const fragment = document.createDocumentFragment();
                 
                 // Server returns messages sorted descending (newest first)
@@ -706,6 +696,7 @@ function initInfiniteScroll() {
                 }
             } else {
                 hasMoreMessages = false;
+                currentPage--; // Revert page increment if no messages loaded
             }
         }
     });
