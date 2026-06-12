@@ -540,22 +540,29 @@ function showLoadMoreButton() {
             console.log('Load Previous Day button clicked!');
             loadMoreBtn.remove();
             
-            // Directly query the DOM for the first message element
-            const firstMessageEl = document.querySelector('#messages li:not(.date-separator)');
-            console.log("DEBUG: First message element found:", firstMessageEl);
+            // Get ALL message bubbles and find the absolute oldest timestamp
+            const allBubbles = document.querySelectorAll('#messages li:not(.date-separator)');
+            let oldestTimestamp = null;
             
-            if (firstMessageEl) {
-                const oldestTimestamp = firstMessageEl.dataset.timestamp;
-                console.log("DEBUG: Dynamic oldest timestamp found on click:", oldestTimestamp);
+            if (allBubbles.length > 0) {
+                // Extract all timestamps and sort them lexicographically
+                const timestamps = Array.from(allBubbles)
+                    .map(el => el.dataset.timestamp)
+                    .filter(Boolean);
                 
-                if (oldestTimestamp) {
-                    console.log('Requesting older messages before:', oldestTimestamp);
-                    
-                    // Request next page from server via socket
-                    socket.emit('get history', { before: oldestTimestamp, limit: 20 });
-                } else {
-                    console.log('No timestamp found on oldest message element');
+                if (timestamps.length > 0) {
+                    timestamps.sort(); // Lexicographical sort works perfectly for ISO timestamps!
+                    oldestTimestamp = timestamps[0]; // The earliest ISO string is now first
+                    console.log("DEBUG: All timestamps found:", timestamps);
+                    console.log("DEBUG: Absolute oldest timestamp found on click:", oldestTimestamp);
                 }
+            }
+            
+            if (oldestTimestamp) {
+                console.log('Requesting older messages before:', oldestTimestamp);
+                
+                // Request next page from server via socket
+                socket.emit('get history', { before: oldestTimestamp, limit: 20 });
             } else {
                 console.log('No messages displayed, requesting first page');
                 socket.emit('get history', { limit: 20 });
