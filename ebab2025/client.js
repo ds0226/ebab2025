@@ -860,11 +860,20 @@ socket.on('history', (messagesHistory) => {
         }
     });
     
-    // Show load more button if there are older messages AND database has messages
-    if (messagesHistory && messagesHistory.length > 0 && messagesHistory.length > allMessages.length) {
-        showLoadMoreButton();
+    // FIX: Only disable load more if the server returns LESS than 20 messages.
+    // If it returns exactly 20, it means there is highly likely MORE history data in MongoDB.
+    if (messagesHistory.length < 20) {
+        console.log("Officially reached the end of chat history. Total messages: " + messagesHistory.length);
+        // Logic to hide button or disable infinite scroll lock goes here
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+        hasMoreMessages = false;
     } else {
-        console.log('Not showing load more button - all messages are displayed');
+        console.log("Exactly 20 messages loaded. Keeping scroll/load-more active for pagination.");
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        if (loadMoreBtn) loadMoreBtn.style.display = 'block';
+        hasMoreMessages = true;
+        showLoadMoreButton();
     }
     
     forceScrollToBottom();
