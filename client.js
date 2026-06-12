@@ -25,6 +25,7 @@ let readFlushTimer = null;
 let isLoading = false;
 let hasMoreMessages = true;
 let currentPage = 1; // Current page for pagination
+let infiniteScrollInitialized = false; // Flag to prevent multiple initializations
 const MESSAGES_PER_PAGE = 20; // Already 20, no change needed
 
 function getStoredOfflineStart(uid) {
@@ -658,15 +659,27 @@ async function initChat() {
 
 // Initialize infinite scroll
 function initInfiniteScroll() {
+    // Prevent multiple initializations
+    if (infiniteScrollInitialized) {
+        console.log('Infinite scroll already initialized, skipping');
+        return;
+    }
+    
+    console.log('Initializing infinite scroll');
+    infiniteScrollInitialized = true;
+    
     messages.addEventListener('scroll', async () => {
         const scrollTop = messages.scrollTop;
         
+        console.log('Scroll event - scrollTop:', scrollTop, 'isLoading:', isLoading, 'hasMoreMessages:', hasMoreMessages);
+        
         // Load more when user scrolls to the very top (scrollTop === 0)
         if (scrollTop === 0 && !isLoading && hasMoreMessages) {
-            console.log('Loading page', currentPage + 1);
+            console.log('Triggering load for page', currentPage + 1);
             
             // Save current scroll height before loading
             const previousScrollHeight = messages.scrollHeight;
+            console.log('Previous scroll height:', previousScrollHeight);
             
             // Load next page
             const nextPage = currentPage + 1;
@@ -733,9 +746,13 @@ function initInfiniteScroll() {
                 // Insert new messages at the beginning
                 messages.insertBefore(fragment, messages.firstChild);
                 
+                console.log('New scroll height after insert:', messages.scrollHeight);
+                
                 // Adjust scroll position to prevent infinite loop
                 setTimeout(() => {
-                    messages.scrollTop = messages.scrollHeight - previousScrollHeight;
+                    const newScrollTop = messages.scrollHeight - previousScrollHeight;
+                    console.log('Setting scrollTop to:', newScrollTop);
+                    messages.scrollTop = newScrollTop;
                 }, 0);
                 
                 // Update page and has more messages flag
@@ -818,6 +835,9 @@ socket.on('history', (messagesHistory) => {
     if (messagesHistory && messagesHistory.length === MESSAGES_PER_PAGE) {
         showLoadMoreButton();
     }
+    
+    // Initialize infinite scroll if not already initialized
+    initInfiniteScroll();
     
     forceScrollToBottom();
     if (currentUser) {
