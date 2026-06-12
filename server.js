@@ -373,6 +373,7 @@ function startServerLogic() {
                 limit: parseInt(limit),
                 page: parseInt(page)
             });
+            // Return messages in descending order (newest first) for cursor-based pagination
             res.json(messages);
         } catch (error) {
             console.error('Error fetching messages:', error);
