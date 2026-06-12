@@ -491,12 +491,16 @@ function startServerLogic() {
                     console.log("SERVER LOG: received get history with data:", data);
                     
                     let query = {};
-                    if (data && data.before) {
-                        // Use string comparison for ISO timestamps
-                        query.timestamp = { $lt: data.before };
-                        console.log("SERVER LOG: Pagination active. Querying before timestamp:", data.before);
-                    }
                     
+                    if (data && data.before) {
+                        console.log("SERVER LOG: Received request for history before:", data.before);
+                        // Apply $lt filter to accommodate both standard Strings or formal Date objects
+                        query.timestamp = { 
+                            $lt: data.before 
+                        };
+                        console.log("SERVER LOG: Query constructed:", JSON.stringify(query));
+                    }
+
                     let messagesHistory;
                     if (useMemoryStore || !messagesCollection) {
                         // In-memory fallback
@@ -511,7 +515,7 @@ function startServerLogic() {
                             messagesHistory = messagesHistory.slice(0, 20);
                         }
                     } else {
-                        // Direct MongoDB query
+                        // Fetch logs strictly sorted by timestamp descending, limiting to 20
                         messagesHistory = await messagesCollection
                             .find(query)
                             .sort({ timestamp: -1 })
@@ -520,7 +524,7 @@ function startServerLogic() {
                     }
                     
                     messagesHistory = messagesHistory.map(m => ({ ...m, _id: String(m._id) }));
-                    console.log("SERVER LOG: returning", messagesHistory.length, "messages");
+                    console.log(`SERVER LOG: Emitted ${messagesHistory.length} historical messages back to client.`);
                     if (messagesHistory.length > 0) {
                         console.log("SERVER LOG: first message timestamp:", messagesHistory[0].timestamp);
                         console.log("SERVER LOG: last message timestamp:", messagesHistory[messagesHistory.length - 1].timestamp);
@@ -529,8 +533,8 @@ function startServerLogic() {
                     // Reverse to chronological order (oldest first) before sending
                     const chronologicalMessages = messagesHistory.reverse();
                     socket.emit('history', chronologicalMessages);
-                } catch (e) {
-                    console.error('Error fetching history (get history):', e);
+                } catch (err) {
+                    console.error("SERVER ERROR inside get history handler:", err);
                 }
             });
         
