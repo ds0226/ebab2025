@@ -685,37 +685,109 @@ socket.on('history', (messagesHistory) => {
         return;
     }
     
-    // Store full history for load more functionality
-    fullHistory = messagesHistory;
-    console.log('Stored fullHistory:', fullHistory.length, 'messages');
-    lastActivityTs = Date.now();
-    messagesHistory.sort((a, b) => {
-        const ta = new Date(a.timestamp || 0).getTime();
-        const tb = new Date(b.timestamp || 0).getTime();
-        return ta - tb;
-    });
+    // Check if this is a pagination response (messages already exist)
+    const existingMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
+    const isPagination = existingMessages.length > 0;
     
-    // Display all messages (no time filter)
-    const allMessages = messagesHistory;
-    
-    console.log(`📋 Displaying all ${allMessages.length} messages`);
-    
-    const deliverIds = [];
-    allMessages.forEach((msg, index) => {
-        if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
-            console.log(`🎨 Rendering message ${index + 1}/${allMessages.length}:`, {
-                id: msg._id,
-                sender: msg.senderID,
-                type: msg.type,
-                hasMessage: !!msg.message
-            });
-            renderMessage(msg);
+    if (isPagination) {
+        console.log('📄 Pagination response - prepending messages');
+        
+        // Prepend new messages to fullHistory
+        fullHistory = [...messagesHistory, ...fullHistory];
+        console.log('Updated fullHistory:', fullHistory.length, 'messages');
+        
+        // Sort new messages chronologically (oldest first)
+        messagesHistory.sort((a, b) => {
+            const ta = new Date(a.timestamp || 0).getTime();
+            const tb = new Date(b.timestamp || 0).getTime();
+            return ta - tb;
+        });
+        
+        // Prepend messages to DOM (insert at top)
+        const fragment = document.createDocumentFragment();
+        let lastDateKey = null;
+        
+        messagesHistory.forEach((msg) => {
+            if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
+                const ts = msg.timestamp || new Date().toISOString();
+                const dateKey = getDateKey(ts);
+                
+                // Add date separator if needed
+                if (dateKey !== lastDateKey) {
+                    const dateLi = document.createElement('li');
+                    dateLi.className = 'date-separator';
+                    dateLi.dataset.date = dateKey;
+                    dateLi.textContent = getDateLabel(ts);
+                    fragment.appendChild(dateLi);
+                    lastDateKey = dateKey;
+                }
+                
+                // Create and append message
+                const element = createMessageElement(msg);
+                fragment.appendChild(element);
+                
+                // Set up read observer
+                observeForRead(element, msg);
+            }
+        });
+        
+        // Insert fragment at the top of messages container
+        messages.insertBefore(fragment, messages.firstChild);
+        
+        // Adjust scroll position to maintain user's view
+        const scrollHeightBefore = messages.scrollHeight;
+        const scrollTopBefore = messages.scrollTop;
+        messages.scrollTop = scrollTopBefore + (messages.scrollHeight - scrollHeightBefore);
+        
+        console.log('Prepended', messagesHistory.length, 'messages');
+    } else {
+        // Initial load - replace everything
+        console.log('🔄 Initial load - replacing all messages');
+        
+        // Store full history for load more functionality
+        fullHistory = messagesHistory;
+        console.log('Stored fullHistory:', fullHistory.length, 'messages');
+        lastActivityTs = Date.now();
+        messagesHistory.sort((a, b) => {
+            const ta = new Date(a.timestamp || 0).getTime();
+            const tb = new Date(b.timestamp || 0).getTime();
+            return ta - tb;
+        });
+        
+        // Clear existing messages
+        messages.innerHTML = '';
+        
+        // Display all messages (no time filter)
+        const allMessages = messagesHistory;
+        
+        console.log(`📋 Displaying all ${allMessages.length} messages`);
+        
+        const deliverIds = [];
+        allMessages.forEach((msg, index) => {
+            if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
+                console.log(`🎨 Rendering message ${index + 1}/${allMessages.length}:`, {
+                    id: msg._id,
+                    sender: msg.senderID,
+                    type: msg.type,
+                    hasMessage: !!msg.message
+                });
+                renderMessage(msg);
+            }
+            const isIncoming = (msg.senderID || msg.sender) !== currentUser;
+            if (isIncoming && msg.status === 'sent' && msg._id) {
+                deliverIds.push(msg._id);
+            }
+        });
+        
+        forceScrollToBottom();
+        
+        if (currentUser) {
+            const otherUser = currentUser === 'i' ? 'x' : 'i';
+            if (deliverIds.length > 0) {
+                socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
+            }
         }
-        const isIncoming = (msg.senderID || msg.sender) !== currentUser;
-        if (isIncoming && msg.status === 'sent' && msg._id) {
-            deliverIds.push(msg._id);
-        }
-    });
+    }
     
     // FIX: Only disable load more if the server returns LESS than 20 messages.
     // If it returns exactly 20, it means there is highly likely MORE history data in MongoDB.
@@ -731,15 +803,6 @@ socket.on('history', (messagesHistory) => {
         if (loadMoreBtn) loadMoreBtn.style.display = 'block';
         hasMoreMessages = true;
         showLoadMoreButton();
-    }
-    
-    forceScrollToBottom();
-    if (currentUser) {
-        const otherUser = currentUser === 'i' ? 'x' : 'i';
-        if (deliverIds.length > 0) {
-            socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
-        }
-        // Removed automatic mark as read - let intersection observer handle it
     }
 });
 

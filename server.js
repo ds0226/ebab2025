@@ -160,19 +160,36 @@ async function connectDB() {
 }
 
 async function dbFindAll(options = {}) {
-    const { limit = null, page = 1 } = options;
+    const { limit = null, before, after } = options;
     let query = {};
+    
+    // Use cursor-based pagination with 'before' timestamp
+    if (before) {
+        query.timestamp = { $lt: new Date(before) };
+    }
+    
+    if (after) {
+        if (query.timestamp) {
+            query.timestamp.$gt = new Date(after);
+        } else {
+            query.timestamp = { $gt: new Date(after) };
+        }
+    }
     
     if (useMemoryStore || !messagesCollection) {
         let results = [...messagesMemory];
+        
+        // Filter by timestamp if 'before' is provided
+        if (before) {
+            results = results.filter(msg => new Date(msg.timestamp) < new Date(before));
+        }
+        
+        if (after) {
+            results = results.filter(msg => new Date(msg.timestamp) > new Date(after));
+        }
+        
         // Sort by timestamp descending (newest first)
         results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        
-        // Apply skip for pagination
-        const skip = (page - 1) * (limit || 20);
-        if (skip > 0) {
-            results = results.slice(skip);
-        }
         
         // Apply limit if specified
         if (limit) {
@@ -181,16 +198,10 @@ async function dbFindAll(options = {}) {
         return results;
     }
     
-    // For MongoDB - use page-based pagination with skip/limit
+    // For MongoDB - use cursor-based pagination with 'before' timestamp
     let cursor = messagesCollection.find(query)
         .sort({ timestamp: -1 }) // Sort by timestamp descending (newest first)
         .hint({ timestamp: 1 }); // Use timestamp index
-    
-    // Apply skip for pagination
-    const skip = (page - 1) * (limit || 20);
-    if (skip > 0) {
-        cursor = cursor.skip(skip);
-    }
     
     if (limit) {
         cursor = cursor.limit(limit);
