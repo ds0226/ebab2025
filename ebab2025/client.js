@@ -715,9 +715,12 @@ async function initChat() {
             console.log('Rendered', initialMessages.length, 'messages');
         }
         
-        // Show "Load More" button if there are potentially more messages AND database has more messages
-        if (initialMessages.length === MESSAGES_PER_PAGE && fullHistory && fullHistory.length > MESSAGES_PER_PAGE) {
+        // FIX: Only show load more button if exactly 20 messages were received (indicates there may be more)
+        if (initialMessages.length === MESSAGES_PER_PAGE) {
+            hasMoreMessages = true;
             showLoadMoreButton();
+        } else {
+            hasMoreMessages = false;
         }
         
         // Initialize infinite scroll
@@ -994,12 +997,15 @@ socket.on('user selected', (success) => {
             
             allMessages.forEach(renderMessage);
             
-            // Show load more button if there are older messages AND database has messages
-            if (fullHistory && fullHistory.length > 0 && fullHistory.length > allMessages.length) {
-                console.log('Calling showLoadMoreButton - fullHistory has', fullHistory.length, 'vs all', allMessages.length);
-                showLoadMoreButton();
+            // FIX: Only disable load more if the server returns LESS than 20 messages.
+            // If it returns exactly 20, it means there is highly likely MORE history data in MongoDB.
+            if (pendingHistory.length < 20) {
+                console.log("Officially reached the end of chat history. Total messages: " + pendingHistory.length);
+                hasMoreMessages = false;
             } else {
-                console.log('Not showing load more button -', fullHistory ? 'no history loaded' : 'all messages are recent');
+                console.log("Exactly 20 messages loaded. Keeping scroll/load-more active for pagination.");
+                hasMoreMessages = true;
+                showLoadMoreButton();
             }
             
             pendingHistory = null; // Clear pending history after checking
