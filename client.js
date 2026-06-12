@@ -446,10 +446,8 @@ async function loadMessages(page = 1) {
             socket.off('history', handleHistory);
             console.log('Received history from socket:', messagesHistory.length, 'messages');
             
-            // Sort by timestamp descending (newest first)
-            messagesHistory.sort((a, b) => 
-                new Date(b.timestamp) - new Date(a.timestamp)
-            );
+            // Server now returns messages in chronological order (oldest first)
+            // No need to reverse
             
             hasMoreMessages = messagesHistory.length === MESSAGES_PER_PAGE;
             
@@ -836,9 +834,11 @@ socket.on('history', (messagesHistory) => {
     // Show load more button if we received a full page (indicates there may be more)
     if (messagesHistory && messagesHistory.length === MESSAGES_PER_PAGE) {
         hasMoreMessages = true; // Explicitly set hasMoreMessages to true
+        console.log('✅ hasMoreMessages set to true - received full page of', MESSAGES_PER_PAGE, 'messages');
         showLoadMoreButton();
     } else {
         hasMoreMessages = false; // Explicitly set hasMoreMessages to false
+        console.log('❌ hasMoreMessages set to false - received only', messagesHistory.length, 'messages (less than', MESSAGES_PER_PAGE, ')');
     }
     
     // Initialize infinite scroll if not already initialized
