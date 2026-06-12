@@ -702,6 +702,7 @@ socket.on('history', (messagesHistory) => {
     
     if (isPagination) {
         console.log('📄 Pagination response - prepending messages');
+        console.log('DEBUG: DOM message count before prepending:', messages.querySelectorAll('li:not(.date-separator)').length);
         
         // Prepend new messages to fullHistory
         fullHistory = [...messagesHistory, ...fullHistory];
@@ -717,6 +718,7 @@ socket.on('history', (messagesHistory) => {
         // Prepend messages to DOM (insert at top)
         const fragment = document.createDocumentFragment();
         let lastDateKey = null;
+        let prependedCount = 0;
         
         messagesHistory.forEach((msg) => {
             if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
@@ -739,11 +741,16 @@ socket.on('history', (messagesHistory) => {
                 
                 // Set up read observer
                 observeForRead(element, msg);
+                prependedCount++;
             }
         });
         
+        console.log('DEBUG: Prepended', prependedCount, 'new messages to fragment');
+        
         // Insert fragment at the top of messages container
         messages.insertBefore(fragment, messages.firstChild);
+        
+        console.log('DEBUG: DOM message count after prepending:', messages.querySelectorAll('li:not(.date-separator)').length);
         
         // Adjust scroll position to maintain user's view
         const scrollHeightBefore = messages.scrollHeight;

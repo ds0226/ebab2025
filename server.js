@@ -488,9 +488,11 @@ function startServerLogic() {
         // --- Get History (for periodic refresh) ---
         socket.on('get history', async (data) => {
                 try {
+                    console.log("SERVER DEBUG: received get history with data:", data);
                     const options = { limit: 20, page: 1 }; // Default to 20 messages, page 1
                     if (data && data.before) {
                         options.before = new Date(data.before);
+                        console.log("SERVER DEBUG: before parameter set to:", options.before);
                     }
                     if (data && data.after) {
                         options.after = new Date(data.after);
@@ -502,6 +504,7 @@ function startServerLogic() {
                         options.page = data.page;
                     }
                     const messagesHistory = (await dbFindAll(options)).map(m => ({ ...m, _id: String(m._id) }));
+                    console.log("SERVER DEBUG: returning", messagesHistory.length, "messages");
                     // Reverse to chronological order (oldest first) before sending
                     const chronologicalMessages = messagesHistory.reverse();
                     socket.emit('history', chronologicalMessages);
