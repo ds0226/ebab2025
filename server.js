@@ -412,8 +412,10 @@ function startServerLogic() {
         socket.emit('presence update', presenceData); 
 
         try {
-            const messagesHistory = (await dbFindAll({ limit: 20 })).map(m => ({ ...m, _id: String(m._id) }));
-            socket.emit('history', messagesHistory);
+            const messagesHistory = (await dbFindAll({ limit: 20, page: 1 })).map(m => ({ ...m, _id: String(m._id) }));
+            // Reverse to chronological order (oldest first) before sending
+            const chronologicalMessages = messagesHistory.reverse();
+            socket.emit('history', chronologicalMessages);
         } catch (e) {
             console.error('Error fetching history:', e);
         }
@@ -475,7 +477,7 @@ function startServerLogic() {
         // --- Get History (for periodic refresh) ---
         socket.on('get history', async (data) => {
                 try {
-                    const options = {};
+                    const options = { limit: 20, page: 1 }; // Default to 20 messages, page 1
                     if (data && data.before) {
                         options.before = new Date(data.before);
                     }
@@ -489,7 +491,9 @@ function startServerLogic() {
                         options.page = data.page;
                     }
                     const messagesHistory = (await dbFindAll(options)).map(m => ({ ...m, _id: String(m._id) }));
-                    socket.emit('history', messagesHistory);
+                    // Reverse to chronological order (oldest first) before sending
+                    const chronologicalMessages = messagesHistory.reverse();
+                    socket.emit('history', chronologicalMessages);
                 } catch (e) {
                     console.error('Error fetching history (get history):', e);
                 }
