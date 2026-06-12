@@ -540,17 +540,20 @@ function showLoadMoreButton() {
             console.log('Load Previous Day button clicked!');
             loadMoreBtn.remove();
             
-            // Get the oldest currently displayed message timestamp
+            // Get the oldest currently displayed message timestamp from DOM
             const displayedMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
             if (displayedMessages.length > 0) {
-                const oldestDisplayedId = displayedMessages[0].dataset.id;
-                const oldestDisplayedMsg = fullHistory.find(msg => msg._id === oldestDisplayedId);
-                if (oldestDisplayedMsg) {
-                    const beforeTimestamp = oldestDisplayedMsg.timestamp;
+                // Get the first (oldest) message element from DOM
+                const oldestMessageElement = displayedMessages[0];
+                const beforeTimestamp = oldestMessageElement.dataset.timestamp;
+                
+                if (beforeTimestamp) {
                     console.log('Requesting older messages before:', beforeTimestamp);
                     
                     // Request next page from server via socket
                     socket.emit('get history', { before: beforeTimestamp, limit: 20 });
+                } else {
+                    console.log('No timestamp found on oldest message element');
                 }
             } else {
                 console.log('No messages displayed, requesting first page');
