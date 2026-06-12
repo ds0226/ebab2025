@@ -24,7 +24,6 @@ let readFlushTimer = null;
 // Infinite scroll variables
 let isLoading = false;
 let hasMoreMessages = true;
-let currentPage = 1; // Current page for pagination
 const MESSAGES_PER_PAGE = 20; // Already 20, no change needed
 
 function getStoredOfflineStart(uid) {
@@ -410,24 +409,28 @@ function renderMessage(messageData) {
 }
 
 // --- Message Loading and Infinite Scroll ---
-async function loadMessages(page = 1) {
+async function loadMessages(page = 1, beforeDate = null) {
     if (isLoading || !hasMoreMessages) return [];
     
     isLoading = true;
     showLoadingIndicator(true);
     
     try {
-        // Try the new API first with pagination
-        console.log('Trying API method with page:', page);
+        // Try the new API first with pagination or before date
+        console.log('Trying API method with page:', page, 'beforeDate:', beforeDate);
         const url = new URL('/api/messages', window.location.origin);
-        url.searchParams.append('page', page);
+        if (beforeDate) {
+            url.searchParams.append('before', beforeDate.getTime());
+        } else {
+            url.searchParams.append('page', page);
+        }
         url.searchParams.append('limit', MESSAGES_PER_PAGE);
         
         const response = await fetch(url);
         if (response.ok) {
             const newMessages = await response.json();
             hasMoreMessages = newMessages.length === MESSAGES_PER_PAGE;
-            console.log('API method succeeded, loaded', newMessages.length, 'messages on page', page);
+            console.log('API method succeeded, loaded', newMessages.length, 'messages');
             return newMessages;
         }
     } catch (error) {
@@ -437,7 +440,12 @@ async function loadMessages(page = 1) {
     // Fallback: Request messages from server
     console.log('Using socket fallback method...');
     return new Promise((resolve) => {
-        const requestData = { limit: MESSAGES_PER_PAGE, page: page };
+        const requestData = { limit: MESSAGES_PER_PAGE };
+        if (beforeDate) {
+            requestData.before = beforeDate.toISOString();
+        } else {
+            requestData.page = page;
+        }
         
         socket.emit('get history', requestData);
         
@@ -535,7 +543,7 @@ function showLoadMoreButton() {
             console.log('Loading messages before:', oldestDate);
             
             // Load older messages from server (only 20 messages at a time)
-            const olderMessages = await loadMessages(oldestDate);
+            const olderMessages = await loadMessages(1, oldestDate);
             
             if (olderMessages.length > 0) {
                 console.log('Loaded', olderMessages.length, 'older messages');
@@ -616,12 +624,11 @@ async function initChat() {
         messages.innerHTML = '';
         
         // Reset pagination
-        currentPage = 1;
         hasMoreMessages = true;
         
         console.log('Initializing chat, loading messages...');
-        // Load initial messages (page 1)
-        const initialMessages = await loadMessages(currentPage);
+        // Load initial messages (most recent 20, no before parameter)
+        const initialMessages = await loadMessages(1, null);
         console.log('Loaded initial messages:', initialMessages.length);
         
         if (initialMessages.length > 0) {
@@ -660,23 +667,62 @@ function initInfiniteScroll() {
         
         // Load more when user scrolls near the top (within 200px)
         if (scrollTop < 200 && !isLoading && hasMoreMessages) {
-            currentPage++; // Increment page number
-            console.log('Loading page', currentPage);
-            const newMessages = await loadMessages(currentPage);
+            // Get the oldest currently displayed message
+            const displayedMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
+            if (displayedMessages.length === 0) return;
+            
+            const oldestDisplayed = displayedMessages.reduce((oldest, msg) => {
+                const oldestTime = new Date(oldest.dataset.timestamp).getTime();
+                const msgTime = new Date(msg.dataset.timestamp).getTime();
+                return msgTime < oldestTime ? msg : oldest;
+            });
+            
+            const oldestDate = new Date(oldestDisplayed.dataset.timestamp);
+            console.log('Loading messages before:', oldestDate);
+            
+            // Load older messages using cursor-based pagination
+            const newMessages = await loadMessages(1, oldestDate);
             
             if (newMessages.length > 0) {
-                console.log('Loaded', newMessages.length, 'messages on page', currentPage);
+                console.log('Loaded', newMessages.length, 'older messages');
                 const fragment = document.createDocumentFragment();
                 
                 // Server returns messages sorted descending (newest first)
                 // Reverse to get chronological order (oldest first)
                 newMessages.reverse();
                 
-                // Add messages in chronological order
+                // Group by date and add to fragment
+                const messagesByDate = {};
                 newMessages.forEach(msg => {
-                    const element = createMessageElement(msg);
-                    fragment.appendChild(element);
-                    observeForRead(element, msg);
+                    const ts = msg.timestamp || new Date().toISOString();
+                    const dateKey = getDateKey(ts);
+                    if (!messagesByDate[dateKey]) {
+                        messagesByDate[dateKey] = [];
+                    }
+                    messagesByDate[dateKey].push(msg);
+                });
+                
+                // Get dates in order (oldest first)
+                const datesInOrder = Object.keys(messagesByDate).sort();
+                
+                // Add to fragment in correct order (oldest date first)
+                datesInOrder.forEach(dateKey => {
+                    // Check if this date separator already exists in messages
+                    if (!messages.querySelector(`li.date-separator[data-date="${dateKey}"]`)) {
+                        const sampleMsg = messagesByDate[dateKey][0];
+                        const dateLi = document.createElement('li');
+                        dateLi.className = 'date-separator';
+                        dateLi.dataset.date = dateKey;
+                        dateLi.textContent = getDateLabel(sampleMsg.timestamp);
+                        fragment.appendChild(dateLi);
+                    }
+                    
+                    // Add messages for this date in order (oldest first)
+                    messagesByDate[dateKey].forEach(msg => {
+                        const element = createMessageElement(msg);
+                        fragment.appendChild(element);
+                        observeForRead(element, msg);
+                    });
                 });
                 
                 // Store current scroll position
@@ -696,7 +742,6 @@ function initInfiniteScroll() {
                 }
             } else {
                 hasMoreMessages = false;
-                currentPage--; // Revert page increment if no messages loaded
             }
         }
     });

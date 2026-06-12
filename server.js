@@ -163,7 +163,7 @@ async function dbFindAll(options = {}) {
     const { before = null, after = null, limit = null, page = 1 } = options;
     let query = {};
     
-    // If before date is provided, only get messages before that date
+    // If before date is provided, only get messages before that date (for cursor-based pagination)
     if (before) {
         query.timestamp = { $lt: new Date(before) };
     }
@@ -193,12 +193,6 @@ async function dbFindAll(options = {}) {
         // Sort by timestamp descending (newest first)
         results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         
-        // Apply skip for pagination
-        const skip = (page - 1) * (limit || 20);
-        if (skip > 0) {
-            results = results.slice(skip);
-        }
-        
         // Apply limit if specified
         if (limit) {
             results = results.slice(0, limit);
@@ -206,17 +200,11 @@ async function dbFindAll(options = {}) {
         return results;
     }
     
-    // For MongoDB - add index hint for better performance
+    // For MongoDB - use cursor-based pagination with before parameter
     let cursor = messagesCollection.find(query)
-        .sort({ timestamp: -1 }) // Sort by timestamp descending
+        .sort({ timestamp: -1 }) // Sort by timestamp descending (newest first)
         .hint({ timestamp: 1 }); // Use timestamp index
     
-    // Apply skip for pagination
-    const skip = (page - 1) * (limit || 20);
-    if (skip > 0) {
-        cursor = cursor.skip(skip);
-    }
-        
     if (limit) {
         cursor = cursor.limit(limit);
     }
