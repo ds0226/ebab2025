@@ -549,15 +549,11 @@ function showLoadMoreButton() {
                     const beforeTimestamp = oldestDisplayedMsg.timestamp;
                     console.log('Requesting older messages before:', beforeTimestamp);
                     
-                    // Show loading indicator
-                    showLoader(true);
-                    
                     // Request next page from server via socket
                     socket.emit('get history', { before: beforeTimestamp, limit: 20 });
                 }
             } else {
                 console.log('No messages displayed, requesting first page');
-                showLoader(true);
                 socket.emit('get history', { limit: 20 });
             }
         });
