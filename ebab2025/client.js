@@ -505,42 +505,25 @@ function showLoadingIndicator(show) {
 function showLoadMoreButton() {
     console.log('showLoadMoreButton called - fullHistory:', fullHistory ? fullHistory.length : 'none');
     
-    // Don't show button if there's no history or no older messages
-    if (!fullHistory || fullHistory.length === 0) {
-        console.log('Not showing button - no history available');
-        return;
-    }
-    
-    // Check if there are currently displayed messages
+    // Don't show button if there are currently displayed messages
     const displayedMessages = messages.querySelectorAll('li:not(.date-separator)');
     if (displayedMessages.length === 0) {
         console.log('Not showing button - no messages currently displayed');
         return;
     }
     
-    // Check if all displayed messages are already the oldest available
-    const oldestDisplayed = Array.from(displayedMessages).reduce((oldest, msg) => {
-        const oldestTime = new Date(oldest.dataset.timestamp).getTime();
-        const msgTime = new Date(msg.dataset.timestamp).getTime();
-        return msgTime < oldestTime ? msg : oldest;
-    });
-    
-    const olderMessages = fullHistory.filter(msg => 
-        new Date(msg.timestamp) < new Date(oldestDisplayed.dataset.timestamp)
-    );
-    
-    if (olderMessages.length === 0) {
-        console.log('Not showing button - no older messages available');
+    // Check if button already exists
+    let loadMoreBtn = document.getElementById('load-more-btn');
+    if (loadMoreBtn) {
+        console.log('Load more button already exists, skipping');
         return;
     }
     
-    let loadMoreBtn = document.getElementById('load-more-btn');
-    if (!loadMoreBtn) {
-        console.log('Creating Load Previous Day button');
-        loadMoreBtn = document.createElement('button');
-        loadMoreBtn.id = 'load-more-btn';
-        loadMoreBtn.textContent = 'Load Previous Day';
-        loadMoreBtn.style.cssText = `
+    console.log('Creating Load Previous Day button');
+    loadMoreBtn = document.createElement('button');
+    loadMoreBtn.id = 'load-more-btn';
+    loadMoreBtn.textContent = 'Load Previous Day';
+    loadMoreBtn.style.cssText = `
             display: block;
             margin: 10px auto;
             padding: 8px 16px;
