@@ -540,18 +540,19 @@ function showLoadMoreButton() {
             console.log('Load Previous Day button clicked!');
             loadMoreBtn.remove();
             
-            // Get the oldest currently displayed message timestamp from DOM
-            const displayedMessages = Array.from(messages.querySelectorAll('li:not(.date-separator)'));
-            if (displayedMessages.length > 0) {
-                // Get the first (oldest) message element from DOM
-                const oldestMessageElement = displayedMessages[0];
-                const beforeTimestamp = oldestMessageElement.dataset.timestamp;
+            // Directly query the DOM for the first message element
+            const firstMessageEl = document.querySelector('#messages li:not(.date-separator)');
+            console.log("DEBUG: First message element found:", firstMessageEl);
+            
+            if (firstMessageEl) {
+                const oldestTimestamp = firstMessageEl.dataset.timestamp;
+                console.log("DEBUG: Dynamic oldest timestamp found on click:", oldestTimestamp);
                 
-                if (beforeTimestamp) {
-                    console.log('Requesting older messages before:', beforeTimestamp);
+                if (oldestTimestamp) {
+                    console.log('Requesting older messages before:', oldestTimestamp);
                     
                     // Request next page from server via socket
-                    socket.emit('get history', { before: beforeTimestamp, limit: 20 });
+                    socket.emit('get history', { before: oldestTimestamp, limit: 20 });
                 } else {
                     console.log('No timestamp found on oldest message element');
                 }
