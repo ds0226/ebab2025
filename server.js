@@ -160,38 +160,19 @@ async function connectDB() {
 }
 
 async function dbFindAll(options = {}) {
-    const { before = null, after = null, limit = null, page = 1 } = options;
+    const { limit = null, page = 1 } = options;
     let query = {};
-    
-    // If before date is provided, only get messages before that date (for cursor-based pagination)
-    if (before) {
-        query.timestamp = { $lt: new Date(before) };
-    }
-    
-    // If after date is provided, only get messages after that date
-    if (after) {
-        if (query.timestamp) {
-            query.timestamp.$gte = new Date(after);
-        } else {
-            query.timestamp = { $gte: new Date(after) };
-        }
-    }
     
     if (useMemoryStore || !messagesCollection) {
         let results = [...messagesMemory];
-        if (query.timestamp) {
-            results = results.filter(msg => {
-                const msgDate = new Date(msg.timestamp);
-                const afterDate = query.timestamp.$gte ? new Date(query.timestamp.$gte) : null;
-                const beforeDate = query.timestamp.$lt ? new Date(query.timestamp.$lt) : null;
-                
-                if (afterDate && msgDate < afterDate) return false;
-                if (beforeDate && msgDate >= beforeDate) return false;
-                return true;
-            });
-        }
         // Sort by timestamp descending (newest first)
         results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        // Apply skip for pagination
+        const skip = (page - 1) * (limit || 20);
+        if (skip > 0) {
+            results = results.slice(skip);
+        }
         
         // Apply limit if specified
         if (limit) {
@@ -200,10 +181,16 @@ async function dbFindAll(options = {}) {
         return results;
     }
     
-    // For MongoDB - use cursor-based pagination with before parameter
+    // For MongoDB - use page-based pagination with skip/limit
     let cursor = messagesCollection.find(query)
         .sort({ timestamp: -1 }) // Sort by timestamp descending (newest first)
         .hint({ timestamp: 1 }); // Use timestamp index
+    
+    // Apply skip for pagination
+    const skip = (page - 1) * (limit || 20);
+    if (skip > 0) {
+        cursor = cursor.skip(skip);
+    }
     
     if (limit) {
         cursor = cursor.limit(limit);
@@ -366,15 +353,17 @@ function startServerLogic() {
     // Endpoint to get paginated messages
     app.get('/api/messages', async (req, res) => {
         try {
-            const { before, after, limit = 20, page = 1 } = req.query;
+            const page = parseInt(req.query.page) || 1;
+            const limit = 20;
+            
             const messages = await dbFindAll({
-                before: before ? new Date(parseInt(before)) : null,
-                after: after ? new Date(parseInt(after)) : null,
-                limit: parseInt(limit),
-                page: parseInt(page)
+                limit: limit,
+                page: page
             });
-            // Return messages in descending order (newest first) for cursor-based pagination
-            res.json(messages);
+            
+            // IMPORTANT: Reverse before sending for chronological order (oldest at top)
+            const chronologicalMessages = messages.reverse();
+            res.json(chronologicalMessages);
         } catch (error) {
             console.error('Error fetching messages:', error);
             res.status(500).json({ error: 'Failed to fetch messages' });
