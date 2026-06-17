@@ -797,6 +797,10 @@ socket.on('history', (messagesHistory) => {
             console.log('DEBUG: Rebuilt date separators by iterating through DOM bubbles');
         } else {
             console.log('⚠️ No unique messages to prepend. Skipping date separator rebuild.');
+            console.log('🚫 Reached end of history. Hiding Load More button.');
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            if (loadMoreBtn) loadMoreBtn.remove();
+            hasMoreMessages = false;
         }
         
         // Adjust scroll position to maintain user's view
@@ -845,6 +849,10 @@ socket.on('history', (messagesHistory) => {
         });
         
         forceScrollToBottom();
+        
+        // Remove any existing date separators before adding new ones
+        const existingSeparators = messages.querySelectorAll('.date-separator');
+        existingSeparators.forEach(sep => sep.remove());
         
         // Add date separators for initial load
         const allBubbles = messages.querySelectorAll('li.message-bubble[data-timestamp]');
