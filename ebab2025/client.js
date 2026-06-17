@@ -851,27 +851,6 @@ socket.on('history', (messagesHistory) => {
         
         forceScrollToBottom();
         
-        // Add date separators for initial load
-        const allBubbles = messages.querySelectorAll('li.message-bubble[data-timestamp]');
-        let lastDateKey = null;
-        
-        allBubbles.forEach((bubble) => {
-            const ts = bubble.dataset.timestamp;
-            const dateKey = getDateKey(ts);
-            
-            // Add date separator if date changed
-            if (dateKey !== lastDateKey) {
-                const dateLi = document.createElement('li');
-                dateLi.className = 'date-separator';
-                dateLi.dataset.date = dateKey;
-                dateLi.textContent = getDateLabel(ts);
-                bubble.parentNode.insertBefore(dateLi, bubble);
-                lastDateKey = dateKey;
-            }
-        });
-        
-        console.log('DEBUG: Added date separators for initial load');
-        
         if (currentUser) {
             const otherUser = currentUser === 'i' ? 'x' : 'i';
             if (deliverIds.length > 0) {
@@ -895,6 +874,27 @@ socket.on('history', (messagesHistory) => {
         hasMoreMessages = true;
         showLoadMoreButton();
     }
+    
+    // Add date separators for initial load (outside the if/else block)
+    const allBubbles = messages.querySelectorAll('li.message-bubble[data-timestamp]');
+    let lastDateKey = null;
+    
+    allBubbles.forEach((bubble) => {
+        const ts = bubble.dataset.timestamp;
+        const dateKey = getDateKey(ts);
+        
+        // Add date separator if date changed
+        if (dateKey !== lastDateKey) {
+            const dateLi = document.createElement('li');
+            dateLi.className = 'date-separator';
+            dateLi.dataset.date = dateKey;
+            dateLi.textContent = getDateLabel(ts);
+            bubble.parentNode.insertBefore(dateLi, bubble);
+            lastDateKey = dateKey;
+        }
+    });
+    
+    console.log('DEBUG: Added date separators for initial load');
 });
 
 // --- Real-time Status Update Listener (NEW) ---
