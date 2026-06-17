@@ -270,13 +270,19 @@ async function uploadFile(file) {
 
     try {
         const response = await fetch('/upload', { method: 'POST', body: formData });
-        if (!response.ok) throw new Error('Upload failed with status: ' + response.status);
-        const data = await response.json(); 
+        const data = await response.json();
+
+        if (!response.ok) {
+            console.error('Upload failed:', data.error);
+            throw new Error('Upload failed with status: ' + response.status);
+        }
+
+        console.log('DEBUG: Upload successful, received URL:', data.url);
 
         const messageData = {
             senderID: currentUser,
             message: data.url,
-            type: data.type,
+            type: 'image',
             timestamp: new Date().toISOString()
         };
         socket.emit('chat message', messageData);
