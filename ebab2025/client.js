@@ -101,11 +101,11 @@ function getDateKey(timestamp) {
 function getDateLabel(timestamp) {
     const d = timestamp ? new Date(timestamp) : new Date();
     const now = new Date();
-    const todayKey = getDateKey(now.toISOString());
+    const todayKey = getDateKey(now);
     const yest = new Date(now);
     yest.setDate(now.getDate() - 1);
-    const yesterdayKey = getDateKey(yest.toISOString());
-    const key = getDateKey(d.toISOString());
+    const yesterdayKey = getDateKey(yest);
+    const key = getDateKey(d);
     
     if (key === todayKey) return 'Today';
     if (key === yesterdayKey) return 'Yesterday';
