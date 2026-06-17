@@ -713,6 +713,14 @@ socket.on('history', (messagesHistory) => {
         );
         console.log('DEBUG: Filtered to', uniqueNewMessages.length, 'unique messages from', messagesHistory.length, 'received');
         
+        // Sort uniqueNewMessages chronologically (oldest first) before processing
+        uniqueNewMessages.sort((a, b) => {
+            const ta = new Date(a.timestamp || 0).getTime();
+            const tb = new Date(b.timestamp || 0).getTime();
+            return ta - tb;
+        });
+        console.log('DEBUG: Sorted unique messages chronologically for processing');
+        
         // Prepend unique new messages to fullHistory
         fullHistory = [...uniqueNewMessages, ...fullHistory];
         console.log('Updated fullHistory:', fullHistory.length, 'messages');
@@ -770,14 +778,35 @@ socket.on('history', (messagesHistory) => {
             // Check boundary: if the last dateKey of the new batch matches the first dateKey of existing DOM,
             // remove the duplicate separator at the boundary
             const allBubbles = messages.querySelectorAll('li.message-bubble[data-timestamp]');
-            // Skip the new batch (prependedCount bubbles) to find the first existing bubble
-            if (allBubbles.length > prependedCount) {
-                const firstExistingBubble = allBubbles[prependedCount];
+            // Find the first existing bubble by skipping the new batch (accounting for date separators in DOM)
+            let bubbleIndex = 0;
+            let skippedBubbles = 0;
+            let firstExistingBubble = null;
+            
+            while (bubbleIndex < allBubbles.length && skippedBubbles < prependedCount) {
+                const bubble = allBubbles[bubbleIndex];
+                const bubbleDateKey = getDateKey(bubble.dataset.timestamp);
+                
+                // Check if this bubble is from the new batch by comparing with uniqueNewMessages
+                const isNewBatch = uniqueNewMessages.some(msg => 
+                    msg._id === bubble.dataset.id && getDateKey(msg.timestamp) === bubbleDateKey
+                );
+                
+                if (isNewBatch) {
+                    skippedBubbles++;
+                } else {
+                    firstExistingBubble = bubble;
+                    break;
+                }
+                bubbleIndex++;
+            }
+            
+            if (firstExistingBubble) {
                 const firstExistingDateKey = getDateKey(firstExistingBubble.dataset.timestamp);
                 if (lastDateKey === firstExistingDateKey) {
-                    // Find and remove the separator at the boundary (the one after the new batch)
-                    const boundarySeparator = messages.querySelector('.date-separator[data-date="' + lastDateKey + '"]');
-                    if (boundarySeparator) {
+                    // Find and remove the separator at the boundary (the one immediately before the first existing bubble)
+                    const boundarySeparator = firstExistingBubble.previousElementSibling;
+                    if (boundarySeparator && boundarySeparator.classList.contains('date-separator')) {
                         boundarySeparator.remove();
                         console.log('DEBUG: Removed duplicate separator at boundary for', lastDateKey);
                     }
