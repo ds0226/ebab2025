@@ -789,15 +789,26 @@ socket.on('history', (messagesHistory) => {
                 console.log('DEBUG: First existing message dateKey before prepend:', firstExistingDateKey);
             }
             
-            // If the last dateKey of the new batch matches the first dateKey of existing DOM,
-            // remove the existing separator from the DOM to prevent duplication
-            if (firstExistingDateKey && lastDateKey === firstExistingDateKey) {
+            // Get the dateKey of the FIRST message in the new batch
+            let newBatchFirstDateKey = null;
+            if (uniqueNewMessages.length > 0) {
+                newBatchFirstDateKey = getDateKey(uniqueNewMessages[0].timestamp);
+                console.log('DEBUG: First message in new batch dateKey:', newBatchFirstDateKey);
+            }
+            
+            // If the first dateKey of the new batch matches the first dateKey of existing DOM,
+            // we're digging up older messages for the same day. Remove the existing separator
+            // and allow the loop to create a new one at the correct position.
+            if (firstExistingDateKey && newBatchFirstDateKey === firstExistingDateKey) {
                 // Find and remove the separator for this dateKey in the existing DOM
                 const existingSeparator = messages.querySelector(`.date-separator[data-date="${firstExistingDateKey}"]`);
                 if (existingSeparator) {
                     existingSeparator.remove();
-                    console.log('DEBUG: Removed existing separator for', firstExistingDateKey, 'from DOM to prevent duplication');
+                    console.log('DEBUG: Removed existing separator for', firstExistingDateKey, 'to reposition to top of new batch');
                 }
+                // Remove from existingDateKeys so the loop will create a new separator
+                existingDateKeys.delete(firstExistingDateKey);
+                console.log('DEBUG: Removed', firstExistingDateKey, 'from existingDateKeys to allow new separator creation');
             }
         }
         
