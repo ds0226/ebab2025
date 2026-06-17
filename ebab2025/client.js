@@ -731,11 +731,6 @@ socket.on('history', (messagesHistory) => {
             return ta - tb;
         });
         
-        // Remove all existing date separators to prevent duplicates
-        const existingSeparators = messages.querySelectorAll('.date-separator');
-        existingSeparators.forEach(sep => sep.remove());
-        console.log('DEBUG: Removed', existingSeparators.length, 'existing date separators');
-        
         // Prepend messages to DOM (insert at top)
         const fragment = document.createDocumentFragment();
         let lastDateKey = null;
