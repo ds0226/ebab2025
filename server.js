@@ -18,9 +18,9 @@ const port = process.env.PORT || 3000;
 
 // --- Cloudinary Configuration ---
 cloudinary.config({
-    cloud_name: 'drwoo08ax',
-    api_key: '976896761426422',
-    api_secret: 'tjazY8X9b8_s4UkMeDqYYspkN0M'
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY,
+  api_secret: process.env.CLOUD_NAME_API_SECRET || process.env.API_SECRET
 });
 
 const storage = new CloudinaryStorage({
@@ -386,15 +386,7 @@ function startServerLogic() {
                 return res.status(400).send('No file uploaded.');
             }
             console.log('File uploaded successfully:', req.file);
-            const fileURL = req.file.path;
-            const mimeType = req.file.mimetype;
-            let fileType = 'document';
-            if (mimeType.startsWith('image')) {
-                fileType = 'image';
-            } else if (mimeType.startsWith('video')) {
-                fileType = 'video';
-            }
-            res.json({ url: fileURL, type: fileType });
+            res.json({ url: req.file.path });
         });
     });
 
