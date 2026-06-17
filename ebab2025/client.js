@@ -731,6 +731,10 @@ socket.on('history', (messagesHistory) => {
             return ta - tb;
         });
         
+        // Save scroll position before DOM modifications
+        const scrollHeightBefore = messages.scrollHeight;
+        const scrollTopBefore = messages.scrollTop;
+        
         // Prepend messages to DOM (insert at top)
         const fragment = document.createDocumentFragment();
         let lastDateKey = null;
@@ -770,27 +774,38 @@ socket.on('history', (messagesHistory) => {
         
         // Only rebuild date separators if new messages were actually added
         if (prependedCount > 0) {
-            // Remove all existing date separators
-            const allSeparators = messages.querySelectorAll('.date-separator');
-            allSeparators.forEach(sep => sep.remove());
-            console.log('DEBUG: Removed', allSeparators.length, 'existing date separators');
+            // Remove all existing date separators - bulletproof cleanup
+            let allSeparators = messages.querySelectorAll('.date-separator');
+            while (allSeparators.length > 0) {
+                allSeparators.forEach(sep => sep.remove());
+                allSeparators = messages.querySelectorAll('.date-separator');
+            }
+            console.log('DEBUG: Removed all date separators');
             
             // Loop through all message bubbles in chronological order and insert date separators
             const allBubbles = messages.querySelectorAll('li.message-bubble[data-timestamp]');
             let lastDateKey = null;
+            let isFirstBubble = true;
             
-            allBubbles.forEach((bubble) => {
+            console.log('DEBUG: Found', allBubbles.length, 'message bubbles to process');
+            
+            allBubbles.forEach((bubble, index) => {
                 const ts = bubble.dataset.timestamp;
                 const dateKey = getDateKey(ts);
+                const dateLabel = getDateLabel(ts);
                 
-                // Add date separator if date changed
-                if (dateKey !== lastDateKey) {
+                console.log(`DEBUG: Bubble ${index}: timestamp=${ts}, dateKey=${dateKey}, dateLabel=${dateLabel}, isFirstBubble=${isFirstBubble}, lastDateKey=${lastDateKey}`);
+                
+                // Add date separator if date changed OR if this is the first bubble
+                if (dateKey !== lastDateKey || isFirstBubble) {
                     const dateLi = document.createElement('li');
                     dateLi.className = 'date-separator';
                     dateLi.dataset.date = dateKey;
-                    dateLi.textContent = getDateLabel(ts);
+                    dateLi.textContent = dateLabel;
                     bubble.parentNode.insertBefore(dateLi, bubble);
                     lastDateKey = dateKey;
+                    isFirstBubble = false;
+                    console.log(`DEBUG: Inserted separator for ${dateLabel} (${dateKey}) before bubble ${index}`);
                 }
             });
             
@@ -804,8 +819,6 @@ socket.on('history', (messagesHistory) => {
         }
         
         // Adjust scroll position to maintain user's view
-        const scrollHeightBefore = messages.scrollHeight;
-        const scrollTopBefore = messages.scrollTop;
         messages.scrollTop = scrollTopBefore + (messages.scrollHeight - scrollHeightBefore);
         
         console.log('Prepended', messagesHistory.length, 'messages');
@@ -850,26 +863,37 @@ socket.on('history', (messagesHistory) => {
         
         forceScrollToBottom();
         
-        // Remove any existing date separators before adding new ones
-        const existingSeparators = messages.querySelectorAll('.date-separator');
-        existingSeparators.forEach(sep => sep.remove());
+        // Remove any existing date separators before adding new ones - bulletproof cleanup
+        let existingSeparators = messages.querySelectorAll('.date-separator');
+        while (existingSeparators.length > 0) {
+            existingSeparators.forEach(sep => sep.remove());
+            existingSeparators = messages.querySelectorAll('.date-separator');
+        }
         
         // Add date separators for initial load
         const allBubbles = messages.querySelectorAll('li.message-bubble[data-timestamp]');
         let lastDateKey = null;
+        let isFirstBubble = true;
         
-        allBubbles.forEach((bubble) => {
+        console.log('DEBUG: Initial load - Found', allBubbles.length, 'message bubbles to process');
+        
+        allBubbles.forEach((bubble, index) => {
             const ts = bubble.dataset.timestamp;
             const dateKey = getDateKey(ts);
+            const dateLabel = getDateLabel(ts);
             
-            // Add date separator if date changed
-            if (dateKey !== lastDateKey) {
+            console.log(`DEBUG: Initial load Bubble ${index}: timestamp=${ts}, dateKey=${dateKey}, dateLabel=${dateLabel}, isFirstBubble=${isFirstBubble}, lastDateKey=${lastDateKey}`);
+            
+            // Add date separator if date changed OR if this is the first bubble
+            if (dateKey !== lastDateKey || isFirstBubble) {
                 const dateLi = document.createElement('li');
                 dateLi.className = 'date-separator';
                 dateLi.dataset.date = dateKey;
-                dateLi.textContent = getDateLabel(ts);
+                dateLi.textContent = dateLabel;
                 bubble.parentNode.insertBefore(dateLi, bubble);
                 lastDateKey = dateKey;
+                isFirstBubble = false;
+                console.log(`DEBUG: Initial load - Inserted separator for ${dateLabel} (${dateKey}) before bubble ${index}`);
             }
         });
         
