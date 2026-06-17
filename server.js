@@ -8,7 +8,6 @@ const path = require('path');
 // Import ObjectId to use with MongoDB updates
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb'); 
 const multer = require('multer'); 
-const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 require('dotenv').config();         
