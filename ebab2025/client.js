@@ -736,6 +736,13 @@ socket.on('history', (messagesHistory) => {
         const scrollHeightBefore = messages.scrollHeight;
         const scrollTopBefore = messages.scrollTop;
         
+        // Collect existing dateKeys from DOM to prevent duplicates
+        const existingDateKeys = new Set();
+        messages.querySelectorAll('.date-separator[data-date]').forEach(sep => {
+            existingDateKeys.add(sep.dataset.date);
+        });
+        console.log('DEBUG: Existing dateKeys in DOM:', Array.from(existingDateKeys));
+        
         // Prepend messages to DOM (insert at top)
         const fragment = document.createDocumentFragment();
         let lastDateKey = null;
@@ -746,14 +753,16 @@ socket.on('history', (messagesHistory) => {
                 const ts = msg.timestamp || new Date().toISOString();
                 const dateKey = getDateKey(ts);
                 
-                // Add date separator if needed
-                if (dateKey !== lastDateKey) {
+                // Add date separator if needed AND if it doesn't already exist in DOM
+                if (dateKey !== lastDateKey && !existingDateKeys.has(dateKey)) {
                     const dateLi = document.createElement('li');
                     dateLi.className = 'date-separator';
                     dateLi.dataset.date = dateKey;
                     dateLi.textContent = getDateLabel(ts);
                     fragment.appendChild(dateLi);
                     lastDateKey = dateKey;
+                    existingDateKeys.add(dateKey); // Track that we're adding this separator
+                    console.log('DEBUG: Adding separator for', dateKey, 'to fragment');
                 }
                 
                 // Create and append message
@@ -803,6 +812,8 @@ socket.on('history', (messagesHistory) => {
             
             if (firstExistingBubble) {
                 const firstExistingDateKey = getDateKey(firstExistingBubble.dataset.timestamp);
+                console.log('DEBUG: Boundary check - lastDateKey:', lastDateKey, 'firstExistingDateKey:', firstExistingDateKey);
+                
                 if (lastDateKey === firstExistingDateKey) {
                     // Find and remove the separator at the boundary (the one immediately before the first existing bubble)
                     const boundarySeparator = firstExistingBubble.previousElementSibling;
