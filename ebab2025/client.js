@@ -264,7 +264,9 @@ async function uploadFile(file) {
     chatContainer.style.cursor = 'progress'; 
 
     const formData = new FormData();
-    formData.append('mediaFile', file); 
+    formData.append('mediaFile', file);
+
+    console.log('DEBUG: Uploading file to /upload with FormData key: mediaFile');
 
     try {
         const response = await fetch('/upload', { method: 'POST', body: formData });
@@ -1187,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         otherUserName.textContent = otherUser.toUpperCase();
         socket.emit('select user', currentUser);
         socket.emit('get presence update');
-        socket.emit('get history');
+        socket.emit('get history', { limit: 20 });
         // Removed automatic mark as read on load - let user actually read messages
     }
     if (!presenceTickerId) {
@@ -1212,7 +1214,7 @@ function startRefreshWatchdog() {
         }
         if (stale) {
             socket.emit('get presence update');
-            socket.emit('get history');
+            socket.emit('get history', { limit: 20 });
             updatePresenceDisplays();
             updateMessageTimestamps();
         }
@@ -1249,7 +1251,7 @@ socket.on('reconnect', () => {
     if (currentUser) {
         socket.emit('select user', currentUser);
         socket.emit('get presence update');
-        socket.emit('get history');
+        socket.emit('get history', { limit: 20 });
     }
 });
 

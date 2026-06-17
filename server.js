@@ -488,17 +488,20 @@ function startServerLogic() {
         // --- Get History (for periodic refresh) ---
         socket.on('get history', async (data) => {
                 try {
+                    const before = data?.before;
+                    const limit = data?.limit || 20;
+
                     console.log("SERVER LOG: received get history with data:", JSON.stringify(data));
-                    console.log("SERVER LOG: data.before:", data?.before);
-                    console.log("SERVER LOG: data.limit:", data?.limit);
-                    
+                    console.log("SERVER LOG: before:", before);
+                    console.log("SERVER LOG: limit:", limit);
+
                     let query = {};
-                    
-                    if (data && data.before) {
-                        console.log("SERVER LOG: Received request for history before:", data.before);
+
+                    if (before) {
+                        console.log("SERVER LOG: Received request for history before:", before);
                         // Apply $lt filter to accommodate both standard Strings or formal Date objects
-                        query.timestamp = { 
-                            $lt: data.before 
+                        query.timestamp = {
+                            $lt: before
                         };
                         console.log("SERVER LOG: Query constructed:", JSON.stringify(query));
                     }
@@ -507,21 +510,17 @@ function startServerLogic() {
                     if (useMemoryStore || !messagesCollection) {
                         // In-memory fallback
                         messagesHistory = [...messagesMemory];
-                        if (data && data.before) {
-                            messagesHistory = messagesHistory.filter(msg => new Date(msg.timestamp) < new Date(data.before));
+                        if (before) {
+                            messagesHistory = messagesHistory.filter(msg => new Date(msg.timestamp) < new Date(before));
                         }
                         messagesHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                        if (data && data.limit) {
-                            messagesHistory = messagesHistory.slice(0, data.limit);
-                        } else {
-                            messagesHistory = messagesHistory.slice(0, 20);
-                        }
+                        messagesHistory = messagesHistory.slice(0, limit);
                     } else {
                         // Fetch logs strictly sorted by timestamp descending, limiting to 20
                         messagesHistory = await messagesCollection
                             .find(query)
                             .sort({ timestamp: -1 })
-                            .limit(data && data.limit ? data.limit : 20)
+                            .limit(limit)
                             .toArray();
                     }
                     
