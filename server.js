@@ -17,10 +17,16 @@ const server = http.createServer(app);
 const port = process.env.PORT || 3000;
 
 // --- Cloudinary Configuration ---
+console.log("DEBUG: Cloudinary Config:", {
+    cloud_name: !!process.env.CLOUD_NAME,
+    api_key: !!process.env.API_KEY,
+    api_secret: !!process.env.CLOUDINARY_API_SECRET
+});
+
 cloudinary.config({
-  cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.API_KEY,
-  api_secret: process.env.CLOUD_NAME_API_SECRET || process.env.API_SECRET
+    cloud_name: process.env.CLOUD_NAME,
+    api_key: process.env.API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 const storage = new CloudinaryStorage({
