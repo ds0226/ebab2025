@@ -375,19 +375,16 @@ function startServerLogic() {
     });
 
     // HTTP endpoint for file uploads
-    app.post('/upload', (req, res) => {
-        upload.single('mediaFile')(req, res, (err) => {
-            if (err) {
-                console.error('Upload error:', err);
-                return res.status(400).json({ error: err.message });
-            }
-            if (!req.file) {
-                console.error('No file uploaded');
-                return res.status(400).send('No file uploaded.');
-            }
-            console.log('File uploaded successfully:', req.file);
-            res.json({ url: req.file.path });
-        });
+    app.post('/upload', upload.single('mediaFile'), (req, res) => {
+        if (!req.file) {
+            console.error("Upload error: No file found in request.");
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        res.json({ url: req.file.path });
+    }, (error, req, res, next) => {
+        // Error handling middleware for Multer
+        console.error("Multer error:", error);
+        res.status(400).json({ error: error.message });
     });
 
 
