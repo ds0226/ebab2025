@@ -101,29 +101,22 @@ function getDateKey(timestamp) {
 function getDateLabel(timestamp) {
     const d = timestamp ? new Date(timestamp) : new Date();
     const now = new Date();
-    const todayKey = getDateKey(now);
-    const yest = new Date(now);
-    yest.setDate(now.getDate() - 1);
-    const yesterdayKey = getDateKey(yest);
-    const key = getDateKey(d);
     
-    if (key === todayKey) return 'Today';
-    if (key === yesterdayKey) return 'Yesterday';
+    // Set both to midnight in local time to compare pure calendar days
+    const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    // For messages within the last 6 days, show day name
-    const sixDaysAgo = new Date(now);
-    sixDaysAgo.setDate(now.getDate() - 6);
+    // Calculate difference in days
+    const diffTime = todayDate - msgDate;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     
-    if (d > sixDaysAgo) {
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays >= 2 && diffDays <= 6) {
         return d.toLocaleDateString(undefined, { weekday: 'long' });
     }
     
-    // For older messages, show full date (MM/DD/YYYY format)
-    return d.toLocaleDateString(undefined, { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit' 
-    });
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
 function ensureDateStamp(timestamp) {
