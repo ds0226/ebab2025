@@ -374,10 +374,19 @@ function startServerLogic() {
         }
     });
 
+    // Debug middleware for /upload requests
+    app.use((req, res, next) => {
+        if (req.path === '/upload') {
+            console.log("DEBUG: Incoming request to /upload");
+        }
+        next();
+    });
+
     // HTTP endpoint for file uploads
     app.post('/upload', upload.single('mediaFile'), (req, res) => {
+        console.log("DEBUG: Reached the /upload route handler. File exists:", !!req.file);
         if (!req.file) {
-            console.error("Upload error: No file found in request.");
+            console.error("DEBUG: No file found in request.");
             return res.status(400).json({ error: 'No file uploaded' });
         }
         res.json({ url: req.file.path });
@@ -385,6 +394,12 @@ function startServerLogic() {
         // Error handling middleware for Multer
         console.error("Multer error:", error);
         res.status(400).json({ error: error.message });
+    });
+
+    // Global error handling middleware
+    app.use((err, req, res, next) => {
+        console.error("DEBUG: GLOBAL ERROR HANDLER -", err);
+        res.status(400).json({ error: err.message });
     });
 
 
