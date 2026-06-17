@@ -753,7 +753,10 @@ socket.on('history', (messagesHistory) => {
                 const ts = msg.timestamp || new Date().toISOString();
                 const dateKey = getDateKey(ts);
                 
-                // Add date separator if needed AND if it doesn't already exist in DOM
+                // Create message element first
+                const element = createMessageElement(msg);
+                
+                // Add date separator BEFORE the message if date changed AND it doesn't already exist in DOM
                 if (dateKey !== lastDateKey && !existingDateKeys.has(dateKey)) {
                     const dateLi = document.createElement('li');
                     dateLi.className = 'date-separator';
@@ -762,11 +765,10 @@ socket.on('history', (messagesHistory) => {
                     fragment.appendChild(dateLi);
                     lastDateKey = dateKey;
                     existingDateKeys.add(dateKey); // Track that we're adding this separator
-                    console.log('DEBUG: Adding separator for', dateKey, 'to fragment');
+                    console.log('DEBUG: Adding separator for', dateKey, 'before message', msg._id);
                 }
                 
-                // Create and append message
-                const element = createMessageElement(msg);
+                // Append message after separator (if any)
                 fragment.appendChild(element);
                 
                 // Set up read observer
@@ -777,52 +779,34 @@ socket.on('history', (messagesHistory) => {
         
         console.log('DEBUG: Prepended', prependedCount, 'new messages to fragment');
         
+        // Only handle date separator boundary if new messages were actually added
+        if (prependedCount > 0) {
+            // Get the dateKey of the first message currently in the DOM (before prepending)
+            const firstExistingBubble = messages.querySelector('li.message-bubble[data-timestamp]');
+            let firstExistingDateKey = null;
+            if (firstExistingBubble) {
+                firstExistingDateKey = getDateKey(firstExistingBubble.dataset.timestamp);
+                console.log('DEBUG: First existing message dateKey before prepend:', firstExistingDateKey);
+            }
+            
+            // If the last dateKey of the new batch matches the first dateKey of existing DOM,
+            // remove the existing separator from the DOM to prevent duplication
+            if (firstExistingDateKey && lastDateKey === firstExistingDateKey) {
+                // Find and remove the separator for this dateKey in the existing DOM
+                const existingSeparator = messages.querySelector(`.date-separator[data-date="${firstExistingDateKey}"]`);
+                if (existingSeparator) {
+                    existingSeparator.remove();
+                    console.log('DEBUG: Removed existing separator for', firstExistingDateKey, 'from DOM to prevent duplication');
+                }
+            }
+        }
+        
         // Insert fragment at the top of messages container
         messages.insertBefore(fragment, messages.firstChild);
         
         console.log('DEBUG: DOM message count after prepending:', messages.querySelectorAll('li:not(.date-separator)').length);
         
-        // Only handle date separator boundary if new messages were actually added
         if (prependedCount > 0) {
-            // Check boundary: if the last dateKey of the new batch matches the first dateKey of existing DOM,
-            // remove the duplicate separator at the boundary
-            const allBubbles = messages.querySelectorAll('li.message-bubble[data-timestamp]');
-            // Find the first existing bubble by skipping the new batch (accounting for date separators in DOM)
-            let bubbleIndex = 0;
-            let skippedBubbles = 0;
-            let firstExistingBubble = null;
-            
-            while (bubbleIndex < allBubbles.length && skippedBubbles < prependedCount) {
-                const bubble = allBubbles[bubbleIndex];
-                const bubbleDateKey = getDateKey(bubble.dataset.timestamp);
-                
-                // Check if this bubble is from the new batch by comparing with uniqueNewMessages
-                const isNewBatch = uniqueNewMessages.some(msg => 
-                    msg._id === bubble.dataset.id && getDateKey(msg.timestamp) === bubbleDateKey
-                );
-                
-                if (isNewBatch) {
-                    skippedBubbles++;
-                } else {
-                    firstExistingBubble = bubble;
-                    break;
-                }
-                bubbleIndex++;
-            }
-            
-            if (firstExistingBubble) {
-                const firstExistingDateKey = getDateKey(firstExistingBubble.dataset.timestamp);
-                console.log('DEBUG: Boundary check - lastDateKey:', lastDateKey, 'firstExistingDateKey:', firstExistingDateKey);
-                
-                if (lastDateKey === firstExistingDateKey) {
-                    // Find and remove the separator at the boundary (the one immediately before the first existing bubble)
-                    const boundarySeparator = firstExistingBubble.previousElementSibling;
-                    if (boundarySeparator && boundarySeparator.classList.contains('date-separator')) {
-                        boundarySeparator.remove();
-                        console.log('DEBUG: Removed duplicate separator at boundary for', lastDateKey);
-                    }
-                }
-            }
             console.log('DEBUG: Incremental date separator processing completed');
         } else {
             console.log('⚠️ No unique messages to prepend. Skipping date separator processing.');
