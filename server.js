@@ -19,38 +19,23 @@ const port = process.env.PORT || 3000;
 
 // --- Cloudinary Configuration ---
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'drwoo08ax',
-    api_key: process.env.CLOUDINARY_API_KEY || '976896761426422',
-    api_secret: process.env.CLOUDINARY_API_SECRET || 'tjazY8X9b8_s4UkMeDqYYspkN0M',
+    cloud_name: 'drwoo08ax',
+    api_key: '976896761426422',
+    api_secret: 'tjazY8X9b8_s4UkMeDqYYspkN0M'
 });
 
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: async (req, file) => {
-        let resourceType = 'auto';
-        return {
-            folder: 'ebab2025_chat_uploads',
-            resource_type: resourceType,
-            public_id: Date.now() + '-' + file.originalname.replace(/[^a-z0-9.]/gi, '_').split('.')[0]
-        };
+    params: {
+        folder: 'ebab2025_chat_uploads',
+        format: async (req, file) => 'jpg',
+        public_id: (req, file) => Date.now() + '-' + file.originalname.replace(/[^a-z0-9.]/gi, '_')
     },
 });
 
-const upload = multer({
+const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 15 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        const allowed = new Set([
-            'image/png',
-            'image/jpeg',
-            'image/jpg',
-            'image/gif',
-            'video/mp4',
-            'video/webm',
-            'application/pdf'
-        ]);
-        cb(null, allowed.has(file.mimetype));
-    }
+    limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 
