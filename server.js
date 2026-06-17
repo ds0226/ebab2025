@@ -394,11 +394,14 @@ function startServerLogic() {
     app.post('/upload', (req, res) => {
         upload.single('mediaFile')(req, res, (err) => {
             if (err) {
+                console.error('Upload error:', err);
                 return res.status(400).json({ error: err.message });
             }
             if (!req.file) {
+                console.error('No file uploaded');
                 return res.status(400).send('No file uploaded.');
             }
+            console.log('File uploaded successfully:', req.file);
             const fileURL = req.file.path;
             const mimeType = req.file.mimetype;
             let fileType = 'document';
