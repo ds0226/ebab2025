@@ -391,15 +391,14 @@ function startServerLogic() {
     // HTTP endpoint for file uploads
     app.post('/upload', upload.single('mediaFile'), (req, res) => {
         console.log("DEBUG: Reached the /upload route handler. File exists:", !!req.file);
+
         if (!req.file) {
-            console.error("DEBUG: No file found in request.");
             return res.status(400).json({ error: 'No file uploaded' });
         }
-        res.json({ url: req.file.path });
-    }, (error, req, res, next) => {
-        // Error handling middleware for Multer
-        console.error("Multer error:", error);
-        res.status(400).json({ error: error.message });
+
+        // Assuming multer-storage-cloudinary attaches the path to req.file.path
+        console.log("DEBUG: File uploaded successfully to:", req.file.path);
+        res.status(200).json({ url: req.file.path });
     });
 
     // Global error handling middleware
