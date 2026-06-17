@@ -127,15 +127,19 @@ body {
 
 /* --- Message Bubbles --- */
 .message-bubble {
-    display: inline-flex; /* Changed from flex to inline-flex */
+    display: flex;
     flex-direction: column;
-    width: fit-content; /* NEW: Size to content exactly */
-    max-width: 65%;
-    margin-bottom: 10px;
-    padding: 6px 8px;
+    width: fit-content;
+    max-width: 70%; /* Limitahan para hindi umabot sa kabilang dulo ang text */
+    margin-bottom: 8px;
+    padding: 8px 12px;
     border-radius: 8px;
     position: relative;
-    word-wrap: break-word;
+    
+    /* Proteksyon sa mahabang text at sunod-sunod na emojis */
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
     box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
 }
 
@@ -177,11 +181,10 @@ body {
 
 /* --- Timestamp and Status --- */
 .message-time {
-    font-size: 0.68rem;
-    color: rgba(255, 255, 255, 0.45);
-    position: absolute;
-    right: 6px;
-    bottom: 4px;
+    font-size: 0.75rem;
+    color: #888;
+    align-self: flex-end; /* Palaging nakadikit sa ibabang kanan ng bubble */
+    margin-top: 4px;
     white-space: nowrap;
     display: flex;
     align-items: center;

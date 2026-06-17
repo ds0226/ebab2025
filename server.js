@@ -8,28 +8,37 @@ const path = require('path');
 // Import ObjectId to use with MongoDB updates
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb'); 
 const multer = require('multer'); 
-const fs = require('fs');         
+const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+require('dotenv').config();         
 
 const app = express();
 const server = http.createServer(app);
 const port = process.env.PORT || 3000;
 
-// --- Multer Configuration ---
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        if (!fs.existsSync('./uploads')) {
-            fs.mkdirSync('./uploads');
-        }
-        cb(null, './uploads/'); 
+// --- Cloudinary Configuration ---
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'drwoo08ax',
+    api_key: process.env.CLOUDINARY_API_KEY || '976896761426422',
+    api_secret: process.env.CLOUDINARY_API_SECRET || 'tjazY8X9b8_s4UkMeDqYYspkN0M',
+});
+
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: async (req, file) => {
+        let resourceType = 'auto';
+        return {
+            folder: 'ebab2025_chat_uploads',
+            resource_type: resourceType,
+            public_id: Date.now() + '-' + file.originalname.replace(/[^a-z0-9.]/gi, '_').split('.')[0]
+        };
     },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname.replace(/[^a-z0-9.]/gi, '_'));
-    }
 });
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 },
+    limits: { fileSize: 15 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowed = new Set([
             'image/png',
@@ -390,7 +399,7 @@ function startServerLogic() {
             if (!req.file) {
                 return res.status(400).send('No file uploaded.');
             }
-            const fileURL = '/uploads/' + req.file.filename;
+            const fileURL = req.file.path;
             const mimeType = req.file.mimetype;
             let fileType = 'document';
             if (mimeType.startsWith('image')) {
