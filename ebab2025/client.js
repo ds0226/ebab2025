@@ -538,17 +538,22 @@ function showLoadMoreButton() {
         
         loadMoreBtn.addEventListener('click', () => {
             console.log('Load Previous Day button clicked!');
+            console.log('DEBUG: Socket connected:', socket.connected);
             loadMoreBtn.remove();
             
             // Get ALL message bubbles and find the absolute oldest timestamp
             const allBubbles = document.querySelectorAll('#messages li:not(.date-separator)');
             let oldestTimestamp = null;
             
+            console.log('DEBUG: Found', allBubbles.length, 'message bubbles');
+            
             if (allBubbles.length > 0) {
                 // Extract all timestamps and sort them lexicographically
                 const timestamps = Array.from(allBubbles)
                     .map(el => el.dataset.timestamp)
                     .filter(Boolean);
+                
+                console.log('DEBUG: Extracted timestamps:', timestamps);
                 
                 if (timestamps.length > 0) {
                     timestamps.sort(); // Lexicographical sort works perfectly for ISO timestamps!
@@ -560,9 +565,11 @@ function showLoadMoreButton() {
             
             if (oldestTimestamp) {
                 console.log('Requesting older messages before:', oldestTimestamp);
+                console.log('DEBUG: Emitting socket event with data:', { before: oldestTimestamp, limit: 20 });
                 
                 // Request next page from server via socket
                 socket.emit('get history', { before: oldestTimestamp, limit: 20 });
+                console.log('DEBUG: Socket emit completed');
             } else {
                 console.log('No messages displayed, requesting first page');
                 socket.emit('get history', { limit: 20 });
@@ -843,6 +850,27 @@ socket.on('history', (messagesHistory) => {
         });
         
         forceScrollToBottom();
+        
+        // Add date separators for initial load
+        const allBubbles = messages.querySelectorAll('li.message-bubble[data-timestamp]');
+        let lastDateKey = null;
+        
+        allBubbles.forEach((bubble) => {
+            const ts = bubble.dataset.timestamp;
+            const dateKey = getDateKey(ts);
+            
+            // Add date separator if date changed
+            if (dateKey !== lastDateKey) {
+                const dateLi = document.createElement('li');
+                dateLi.className = 'date-separator';
+                dateLi.dataset.date = dateKey;
+                dateLi.textContent = getDateLabel(ts);
+                bubble.parentNode.insertBefore(dateLi, bubble);
+                lastDateKey = dateKey;
+            }
+        });
+        
+        console.log('DEBUG: Added date separators for initial load');
         
         if (currentUser) {
             const otherUser = currentUser === 'i' ? 'x' : 'i';

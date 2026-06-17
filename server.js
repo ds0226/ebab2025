@@ -488,7 +488,9 @@ function startServerLogic() {
         // --- Get History (for periodic refresh) ---
         socket.on('get history', async (data) => {
                 try {
-                    console.log("SERVER LOG: received get history with data:", data);
+                    console.log("SERVER LOG: received get history with data:", JSON.stringify(data));
+                    console.log("SERVER LOG: data.before:", data?.before);
+                    console.log("SERVER LOG: data.limit:", data?.limit);
                     
                     let query = {};
                     
