@@ -419,12 +419,9 @@ function startServerLogic() {
                 activeUsers[userId] = null;
             }
             
-            // Clear session token on explicit offline
-            if (userSessions[userId]) {
-                userSessions[userId] = null;
-            }
+            // DO NOT clear session token - it should persist for reconnection after refresh
             
-            console.log(`User ${userId} explicitly marked as offline via beforeunload`);
+            console.log(`User ${userId} explicitly marked as offline via beforeunload (session token preserved)`);
             broadcastPresenceUpdate();
             
             const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
@@ -444,6 +441,23 @@ function startServerLogic() {
         const origin = socket.handshake.headers.origin || socket.handshake.headers.referer || '';
         const ua = socket.handshake.headers['user-agent'] || '';
         console.log('Socket connected:', socket.id, origin, ua);
+
+        // Auto-cleanup stale users on new connection to prevent locking issues
+        for (const userId in activeUsers) {
+            const socketId = activeUsers[userId];
+            if (socketId) {
+                const sock = io.sockets.sockets.get(socketId);
+                const connected = !!(sock && sock.connected);
+                
+                if (!connected) {
+                    activeUsers[userId] = null;
+                    // DO NOT clear session token on auto-cleanup - preserve it for reconnection
+                    userPresence[userId].isOnline = false;
+                    userPresence[userId].socketId = null;
+                    console.log(`Auto-cleaned stale user ${userId} on new connection (session token preserved)`);
+                }
+            }
+        }
 
         const initialInUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
         socket.emit('available users', initialInUseList);
@@ -473,14 +487,35 @@ function startServerLogic() {
             const userId = typeof data === 'string' ? data : data.userId;
             const sessionToken = typeof data === 'object' ? data.sessionToken : null;
             
+            console.log(`[DEBUG] select user - userId: ${userId}, sessionToken: ${sessionToken}, storedSession: ${userSessions[userId]}, activeUsers: ${activeUsers[userId]}`);
+            
             // Check if user is available or if the session token matches
             const isAvailable = activeUsers[userId] === null;
             const sessionMatches = sessionToken && userSessions[userId] === sessionToken;
             
-            if (isAvailable || sessionMatches) {
+            console.log(`[DEBUG] isAvailable: ${isAvailable}, sessionMatches: ${sessionMatches}`);
+            
+            // Allow connection if:
+            // 1. User is available (not currently active)
+            // 2. Session token matches (reconnection from same browser session)
+            // 3. Session token is provided but no stored session exists (server restart scenario)
+            const shouldAllow = isAvailable || sessionMatches || (sessionToken && !userSessions[userId]);
+            
+            if (shouldAllow) {
+                // If there's an existing socket for this user (different session), disconnect it first
+                if (!isAvailable && activeUsers[userId] !== socket.id) {
+                    const oldSocketId = activeUsers[userId];
+                    const oldSocket = io.sockets.sockets.get(oldSocketId);
+                    if (oldSocket) {
+                        oldSocket.disconnect();
+                        console.log(`Disconnected old socket for user ${userId} (new session taking over)`);
+                    }
+                }
+                
                 activeUsers[userId] = socket.id;
                 if (sessionToken) {
                     userSessions[userId] = sessionToken;
+                    console.log(`[DEBUG] Stored session token for user ${userId}: ${sessionToken}`);
                 }
                 
                 userPresence[userId].socketId = socket.id;
@@ -513,6 +548,7 @@ function startServerLogic() {
                     }
                 })();
             } else {
+                console.log(`[DEBUG] User selection FAILED for ${userId} - not available and session doesn't match`);
                 socket.emit('user selected', false);
             }
             const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
@@ -544,12 +580,9 @@ function startServerLogic() {
                     activeUsers[userId] = null;
                 }
                 
-                // Clear session token on explicit offline
-                if (userSessions[userId]) {
-                    userSessions[userId] = null;
-                }
+                // DO NOT clear session token - it should persist for reconnection after refresh
                 
-                console.log(`User ${userId} explicitly marked as offline via socket event`);
+                console.log(`User ${userId} explicitly marked as offline via socket event (session token preserved)`);
                 broadcastPresenceUpdate();
                 
                 const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
@@ -568,14 +601,14 @@ function startServerLogic() {
                     sock.disconnect();
                 }
                 
-                // Clear user from active users
+                // Clear user from active users AND session token (only on explicit force release)
                 activeUsers[userId] = null;
                 userSessions[userId] = null;
                 userPresence[userId].isOnline = false;
                 userPresence[userId].lastSeen = new Date().toISOString();
                 userPresence[userId].socketId = null;
                 
-                console.log(`User ${userId} force released`);
+                console.log(`User ${userId} force released (session token cleared)`);
                 broadcastPresenceUpdate();
                 
                 const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
@@ -599,11 +632,11 @@ function startServerLogic() {
                     
                     if (!connected) {
                         activeUsers[userId] = null;
-                        userSessions[userId] = null;
+                        // DO NOT clear session token on cleanup - preserve it for reconnection
                         userPresence[userId].isOnline = false;
                         userPresence[userId].socketId = null;
                         cleanedCount++;
-                        console.log(`Cleaned up stale user ${userId}`);
+                        console.log(`Cleaned up stale user ${userId} (session token preserved)`);
                     }
                 }
             }
@@ -907,15 +940,15 @@ function startServerLogic() {
             if (disconnectedUser) {
                 activeUsers[disconnectedUser] = null;
                 
-                // Clear session token on disconnect
-                userSessions[disconnectedUser] = null;
+                // DO NOT clear session token on disconnect - it should persist for reconnection
+                // Session token is only cleared when a new session with different token connects
                 
                 // Update presence tracking
                 userPresence[disconnectedUser].isOnline = false;
                 userPresence[disconnectedUser].lastSeen = new Date().toISOString();
                 userPresence[disconnectedUser].socketId = null;
                 
-                console.log(`User ${disconnectedUser} is now offline`);
+                console.log(`User ${disconnectedUser} is now offline (session token preserved for reconnection)`);
                 
                 const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
                 io.emit('available users', inUseList);

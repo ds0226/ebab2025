@@ -973,13 +973,18 @@ function selectUser(userId) {
     if (!sessionToken) {
         sessionToken = generateSessionToken();
         setStoredSessionToken(userId, sessionToken);
+        console.log(`[DEBUG] Generated new session token for ${userId}: ${sessionToken}`);
+    } else {
+        console.log(`[DEBUG] Using existing session token for ${userId}: ${sessionToken}`);
     }
 
     // Tell the server which user we are with session token
+    console.log(`[DEBUG] Sending select user with userId: ${userId}, sessionToken: ${sessionToken}`);
     socket.emit('select user', { userId, sessionToken });
 }
 
 socket.on('user selected', (success) => {
+    console.log(`[DEBUG] user selected response: ${success}`);
     if (success) {
         selectionScreen.style.display = 'none';
         chatContainer.style.display = 'flex';
@@ -1023,32 +1028,47 @@ socket.on('user selected', (success) => {
         // Request latest presence data
         socket.emit('get presence update');
     } else {
+        console.log(`[DEBUG] User selection failed, attempting cleanup and retry`);
         const userTryingToSelect = currentUser;
-        const otherUser = userTryingToSelect === 'i' ? 'x' : 'i';
         
-        // Offer to force release the user if it seems stuck
-        if (confirm(`User ${otherUser.toUpperCase()} appears to be taken. Would you like to try force releasing them? This can help if they closed the browser improperly.`)) {
-            socket.emit('force release user', otherUser);
-            
-            // Listen for the response
-            socket.once('force release user', (response) => {
-                if (response.success) {
-                    console.log(`Successfully force released user ${otherUser}`);
-                    // Try selecting again after a short delay
-                    setTimeout(() => {
-                        socket.emit('select user', userTryingToSelect);
-                    }, 500);
+        // Automatically try cleanup and retry instead of showing alert
+        socket.emit('cleanup stale users');
+        
+        socket.once('cleanup stale users', (response) => {
+            console.log(`[DEBUG] Cleanup response:`, response);
+            if (response.success && response.cleanedCount > 0) {
+                // Retry selection after cleanup
+                setTimeout(() => {
+                    console.log(`[DEBUG] Retrying user selection after cleanup`);
+                    selectUser(userTryingToSelect);
+                }, 300);
+            } else {
+                // If cleanup didn't help, then show the alert
+                const otherUser = userTryingToSelect === 'i' ? 'x' : 'i';
+                
+                if (confirm(`User ${otherUser.toUpperCase()} appears to be taken. Would you like to try force releasing them? This can help if they closed the browser improperly.`)) {
+                    socket.emit('force release user', otherUser);
+                    
+                    socket.once('force release user', (response) => {
+                        if (response.success) {
+                            console.log(`Successfully force released user ${otherUser}`);
+                            setTimeout(() => {
+                                selectUser(userTryingToSelect);
+                            }, 500);
+                        } else {
+                            console.log(`Failed to force release user ${otherUser}:`, response.reason);
+                            alert(`Could not release user ${otherUser.toUpperCase()}. Reason: ${response.reason || 'Unknown error'}`);
+                        }
+                    });
                 } else {
-                    console.log(`Failed to force release user ${otherUser}:`, response.reason);
-                    alert(`Could not release user ${otherUser.toUpperCase()}. Reason: ${response.reason || 'Unknown error'}`);
+                    alert('This user is already taken. Please select the other user.');
+                    clearStoredSelectedUser();
+                    // DO NOT clear session token - preserve it for reconnection
+                    selectionScreen.style.display = 'flex';
+                    chatContainer.style.display = 'none';
                 }
-            });
-        } else {
-            alert('This user is already taken. Please select the other user.');
-            clearStoredSelectedUser();
-            selectionScreen.style.display = 'flex';
-            chatContainer.style.display = 'none';
-        }
+            }
+        });
     }
 });
 
@@ -1125,6 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupUserSelection();
     const storedUser = getStoredSelectedUser();
     if (storedUser) {
+        console.log(`[DEBUG] Found stored user: ${storedUser}, waiting for socket to connect before selecting`);
         currentUser = storedUser;
         selectionScreen.style.display = 'none';
         chatContainer.style.display = 'flex';
@@ -1132,17 +1153,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const otherUser = currentUser === 'i' ? 'x' : 'i';
         otherUserName.textContent = otherUser.toUpperCase();
         
-        // Get stored session token for reconnection
-        const sessionToken = getStoredSessionToken(currentUser);
-        if (sessionToken) {
-            socket.emit('select user', { userId: currentUser, sessionToken });
-        } else {
-            socket.emit('select user', currentUser);
-        }
+        // Wait for socket to be connected before selecting user
+        const attemptUserSelection = () => {
+            if (socket.connected) {
+                console.log(`[DEBUG] Socket connected, attempting user selection`);
+                // Get stored session token for reconnection
+                const sessionToken = getStoredSessionToken(currentUser);
+                if (sessionToken) {
+                    socket.emit('select user', { userId: currentUser, sessionToken });
+                } else {
+                    socket.emit('select user', currentUser);
+                }
+                
+                socket.emit('get presence update');
+                socket.emit('get history');
+                socket.emit('mark conversation read', { readerID: currentUser });
+            } else {
+                console.log(`[DEBUG] Socket not connected yet, retrying in 100ms`);
+                setTimeout(attemptUserSelection, 100);
+            }
+        };
         
-        socket.emit('get presence update');
-        socket.emit('get history');
-        socket.emit('mark conversation read', { readerID: currentUser });
+        // Add a small delay to ensure old socket has time to disconnect
+        setTimeout(attemptUserSelection, 200);
     }
     if (!presenceTickerId) {
         presenceTickerId = setInterval(() => {
@@ -1159,8 +1192,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Send explicit offline notification when user closes tab/window
     window.addEventListener('beforeunload', () => {
         if (currentUser) {
-            // Clear session token on page unload
-            clearStoredSessionToken(currentUser);
+            // DO NOT clear session token - it should persist for reconnection after refresh
+            // Only clear it when user explicitly logs out or after long inactivity
             
             // Use navigator.sendBeacon for reliable delivery during page unload
             const data = JSON.stringify({ userId: currentUser });
