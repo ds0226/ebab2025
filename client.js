@@ -1157,13 +1157,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const attemptUserSelection = () => {
             if (socket.connected) {
                 console.log(`[DEBUG] Socket connected, attempting user selection`);
-                // Get stored session token for reconnection
-                const sessionToken = getStoredSessionToken(currentUser);
-                if (sessionToken) {
-                    socket.emit('select user', { userId: currentUser, sessionToken });
+                // Get or generate session token for reconnection
+                let sessionToken = getStoredSessionToken(currentUser);
+                if (!sessionToken) {
+                    sessionToken = generateSessionToken();
+                    setStoredSessionToken(currentUser, sessionToken);
+                    console.log(`[DEBUG] Generated new session token for ${currentUser}: ${sessionToken}`);
                 } else {
-                    socket.emit('select user', currentUser);
+                    console.log(`[DEBUG] Using existing session token for ${currentUser}: ${sessionToken}`);
                 }
+                
+                // Always send as object with session token
+                console.log(`[DEBUG] Sending select user with userId: ${currentUser}, sessionToken: ${sessionToken}`);
+                socket.emit('select user', { userId: currentUser, sessionToken });
                 
                 socket.emit('get presence update');
                 socket.emit('get history');
@@ -1248,13 +1254,20 @@ function observeForRead(li, messageData) {
 
 socket.on('reconnect', () => {
     if (currentUser) {
-        // Get stored session token for reconnection
-        const sessionToken = getStoredSessionToken(currentUser);
-        if (sessionToken) {
-            socket.emit('select user', { userId: currentUser, sessionToken });
+        // Get or generate session token for reconnection
+        let sessionToken = getStoredSessionToken(currentUser);
+        if (!sessionToken) {
+            sessionToken = generateSessionToken();
+            setStoredSessionToken(currentUser, sessionToken);
+            console.log(`[DEBUG] Generated new session token for ${currentUser} on reconnect: ${sessionToken}`);
         } else {
-            socket.emit('select user', currentUser);
+            console.log(`[DEBUG] Using existing session token for ${currentUser} on reconnect: ${sessionToken}`);
         }
+        
+        // Always send as object with session token
+        console.log(`[DEBUG] Sending select user on reconnect with userId: ${currentUser}, sessionToken: ${sessionToken}`);
+        socket.emit('select user', { userId: currentUser, sessionToken });
+        
         socket.emit('get presence update');
         socket.emit('get history');
     }
