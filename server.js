@@ -401,6 +401,27 @@ function startServerLogic() {
         res.status(200).json({ url: req.file.path });
     });
 
+    // HTTP endpoint for explicit offline notification (used with beforeunload)
+    app.post('/api/user-offline', express.json(), (req, res) => {
+        const { userId } = req.body;
+        if (userId && userPresence[userId]) {
+            userPresence[userId].isOnline = false;
+            userPresence[userId].lastSeen = new Date().toISOString();
+            userPresence[userId].socketId = null;
+            
+            if (activeUsers[userId]) {
+                activeUsers[userId] = null;
+            }
+            
+            console.log(`User ${userId} explicitly marked as offline via beforeunload`);
+            broadcastPresenceUpdate();
+            
+            const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
+            io.emit('available users', inUseList);
+        }
+        res.status(200).send();
+    });
+
     // Global error handling middleware
     app.use((err, req, res, next) => {
         console.error("DEBUG: GLOBAL ERROR HANDLER -", err);
@@ -488,6 +509,26 @@ function startServerLogic() {
                 };
             }
             socket.emit('presence update', presenceData);
+        });
+
+        // --- Explicit Offline Notification Event ---
+        socket.on('user going offline', (data) => {
+            const userId = data.userId;
+            if (userId && userPresence[userId]) {
+                userPresence[userId].isOnline = false;
+                userPresence[userId].lastSeen = new Date().toISOString();
+                userPresence[userId].socketId = null;
+                
+                if (activeUsers[userId]) {
+                    activeUsers[userId] = null;
+                }
+                
+                console.log(`User ${userId} explicitly marked as offline via socket event`);
+                broadcastPresenceUpdate();
+                
+                const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
+                io.emit('available users', inUseList);
+            }
         });
 
         // --- Get History (for periodic refresh) ---

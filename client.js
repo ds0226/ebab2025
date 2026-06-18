@@ -1113,6 +1113,17 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('focus', () => { windowFocused = true; });
     window.addEventListener('blur', () => { windowFocused = false; });
     document.addEventListener('visibilitychange', () => { updatePresenceDisplays(); });
+    
+    // Send explicit offline notification when user closes tab/window
+    window.addEventListener('beforeunload', () => {
+        if (currentUser) {
+            // Use navigator.sendBeacon for reliable delivery during page unload
+            const data = JSON.stringify({ userId: currentUser });
+            navigator.sendBeacon('/api/user-offline', new Blob([data], { type: 'application/json' }));
+            // Also emit socket event as backup
+            socket.emit('user going offline', { userId: currentUser });
+        }
+    });
 });
 
 function startRefreshWatchdog() {
