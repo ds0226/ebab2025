@@ -16,6 +16,7 @@ let presenceTickerId = null;
 let localOfflineStart = {};
 const OFFLINE_KEY_PREFIX = 'offlineStart_';
 const SELECTED_USER_KEY = 'selectedUser';
+const SESSION_TOKEN_KEY = 'sessionToken_';
 let lastActivityTs = Date.now();
 let windowFocused = true;
 let pendingReadIds = new Set();
@@ -45,6 +46,32 @@ function setStoredOfflineStart(uid, ts) {
 function clearStoredOfflineStart(uid) {
     try {
         localStorage.removeItem(OFFLINE_KEY_PREFIX + uid);
+    } catch (_) {}
+}
+
+// --- Session Token Management ---
+function generateSessionToken() {
+    // Generate a unique session token using timestamp and random string
+    return Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 9);
+}
+
+function getStoredSessionToken(uid) {
+    try {
+        return localStorage.getItem(SESSION_TOKEN_KEY + uid);
+    } catch (_) {
+        return null;
+    }
+}
+
+function setStoredSessionToken(uid, token) {
+    try {
+        localStorage.setItem(SESSION_TOKEN_KEY + uid, token);
+    } catch (_) {}
+}
+
+function clearStoredSessionToken(uid) {
+    try {
+        localStorage.removeItem(SESSION_TOKEN_KEY + uid);
     } catch (_) {}
 }
 
@@ -941,8 +968,15 @@ function setupUserSelection() {
 function selectUser(userId) {
     currentUser = userId;
 
-    // Tell the server which user we are
-    socket.emit('select user', userId);
+    // Get or generate session token
+    let sessionToken = getStoredSessionToken(userId);
+    if (!sessionToken) {
+        sessionToken = generateSessionToken();
+        setStoredSessionToken(userId, sessionToken);
+    }
+
+    // Tell the server which user we are with session token
+    socket.emit('select user', { userId, sessionToken });
 }
 
 socket.on('user selected', (success) => {
@@ -1097,7 +1131,15 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUserDisplay.textContent = currentUser;
         const otherUser = currentUser === 'i' ? 'x' : 'i';
         otherUserName.textContent = otherUser.toUpperCase();
-        socket.emit('select user', currentUser);
+        
+        // Get stored session token for reconnection
+        const sessionToken = getStoredSessionToken(currentUser);
+        if (sessionToken) {
+            socket.emit('select user', { userId: currentUser, sessionToken });
+        } else {
+            socket.emit('select user', currentUser);
+        }
+        
         socket.emit('get presence update');
         socket.emit('get history');
         socket.emit('mark conversation read', { readerID: currentUser });
@@ -1117,6 +1159,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Send explicit offline notification when user closes tab/window
     window.addEventListener('beforeunload', () => {
         if (currentUser) {
+            // Clear session token on page unload
+            clearStoredSessionToken(currentUser);
+            
             // Use navigator.sendBeacon for reliable delivery during page unload
             const data = JSON.stringify({ userId: currentUser });
             navigator.sendBeacon('/api/user-offline', new Blob([data], { type: 'application/json' }));
@@ -1170,7 +1215,13 @@ function observeForRead(li, messageData) {
 
 socket.on('reconnect', () => {
     if (currentUser) {
-        socket.emit('select user', currentUser);
+        // Get stored session token for reconnection
+        const sessionToken = getStoredSessionToken(currentUser);
+        if (sessionToken) {
+            socket.emit('select user', { userId: currentUser, sessionToken });
+        } else {
+            socket.emit('select user', currentUser);
+        }
         socket.emit('get presence update');
         socket.emit('get history');
     }
