@@ -29,6 +29,12 @@ let currentPage = 1; // Current page for pagination
 let infiniteScrollInitialized = false; // Flag to prevent multiple initializations
 const MESSAGES_PER_PAGE = 20; // Already 20, no change needed
 
+// Global session token for browser session - initialized once and persists
+if (!localStorage.getItem('global_session_token')) {
+    localStorage.setItem('global_session_token', 'sess_' + Math.random().toString(36).substr(2, 9));
+}
+const sessionToken = localStorage.getItem('global_session_token');
+
 function getStoredOfflineStart(uid) {
     try {
         return localStorage.getItem(OFFLINE_KEY_PREFIX + uid);
@@ -968,17 +974,7 @@ function setupUserSelection() {
 function selectUser(userId) {
     currentUser = userId;
 
-    // Get or generate session token
-    let sessionToken = getStoredSessionToken(userId);
-    if (!sessionToken) {
-        sessionToken = generateSessionToken();
-        setStoredSessionToken(userId, sessionToken);
-        console.log(`[DEBUG] Generated new session token for ${userId}: ${sessionToken}`);
-    } else {
-        console.log(`[DEBUG] Using existing session token for ${userId}: ${sessionToken}`);
-    }
-
-    // Tell the server which user we are with session token
+    // Tell the server which user we are with global session token
     console.log(`[DEBUG] Sending select user with userId: ${userId}, sessionToken: ${sessionToken}`);
     socket.emit('select user', { userId, sessionToken });
 }
@@ -1157,17 +1153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const attemptUserSelection = () => {
             if (socket.connected) {
                 console.log(`[DEBUG] Socket connected, attempting user selection`);
-                // Get or generate session token for reconnection
-                let sessionToken = getStoredSessionToken(currentUser);
-                if (!sessionToken) {
-                    sessionToken = generateSessionToken();
-                    setStoredSessionToken(currentUser, sessionToken);
-                    console.log(`[DEBUG] Generated new session token for ${currentUser}: ${sessionToken}`);
-                } else {
-                    console.log(`[DEBUG] Using existing session token for ${currentUser}: ${sessionToken}`);
-                }
-                
-                // Always send as object with session token
+                // Always send as object with global session token
                 console.log(`[DEBUG] Sending select user with userId: ${currentUser}, sessionToken: ${sessionToken}`);
                 socket.emit('select user', { userId: currentUser, sessionToken });
                 
@@ -1254,17 +1240,7 @@ function observeForRead(li, messageData) {
 
 socket.on('reconnect', () => {
     if (currentUser) {
-        // Get or generate session token for reconnection
-        let sessionToken = getStoredSessionToken(currentUser);
-        if (!sessionToken) {
-            sessionToken = generateSessionToken();
-            setStoredSessionToken(currentUser, sessionToken);
-            console.log(`[DEBUG] Generated new session token for ${currentUser} on reconnect: ${sessionToken}`);
-        } else {
-            console.log(`[DEBUG] Using existing session token for ${currentUser} on reconnect: ${sessionToken}`);
-        }
-        
-        // Always send as object with session token
+        // Always send as object with global session token
         console.log(`[DEBUG] Sending select user on reconnect with userId: ${currentUser}, sessionToken: ${sessionToken}`);
         socket.emit('select user', { userId: currentUser, sessionToken });
         

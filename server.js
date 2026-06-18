@@ -495,11 +495,40 @@ function startServerLogic() {
             
             console.log(`[DEBUG] isAvailable: ${isAvailable}, sessionMatches: ${sessionMatches}`);
             
+            // Check if old socket is disconnected or from same IP (aggressive mode)
+            let oldSocketDisconnected = false;
+            let sameIPAddress = false;
+            
+            if (!isAvailable && activeUsers[userId]) {
+                const oldSocketId = activeUsers[userId];
+                const oldSocket = io.sockets.sockets.get(oldSocketId);
+                
+                // Check if old socket is still connected
+                if (!oldSocket || !oldSocket.connected) {
+                    oldSocketDisconnected = true;
+                    console.log(`[DEBUG] Old socket for user ${userId} is disconnected`);
+                }
+                
+                // Check if old socket is from same IP address
+                if (oldSocket && oldSocket.handshake) {
+                    const oldIP = oldSocket.handshake.address;
+                    const newIP = socket.handshake.address;
+                    if (oldIP === newIP) {
+                        sameIPAddress = true;
+                        console.log(`[DEBUG] Old and new sockets are from same IP: ${oldIP}`);
+                    }
+                }
+            }
+            
+            console.log(`[DEBUG] oldSocketDisconnected: ${oldSocketDisconnected}, sameIPAddress: ${sameIPAddress}`);
+            
             // Allow connection if:
             // 1. User is available (not currently active)
             // 2. Session token matches (reconnection from same browser session)
             // 3. Session token is provided but no stored session exists (server restart scenario)
-            const shouldAllow = isAvailable || sessionMatches || (sessionToken && !userSessions[userId]);
+            // 4. Old socket is disconnected (aggressive mode)
+            // 5. Old socket is from same IP address (aggressive mode)
+            const shouldAllow = isAvailable || sessionMatches || (sessionToken && !userSessions[userId]) || oldSocketDisconnected || sameIPAddress;
             
             if (shouldAllow) {
                 // If there's an existing socket for this user (different session), disconnect it first
