@@ -1,5 +1,12 @@
 // client.js - Handles all client-side logic, including file upload and real-time read receipts.
 
+// Global session token for browser session - initialized FIRST before anything else
+if (!localStorage.getItem('global_session_token')) {
+    localStorage.setItem('global_session_token', 'sess_' + Math.random().toString(36).substr(2, 9));
+}
+const sessionToken = localStorage.getItem('global_session_token');
+console.log(`[DEBUG] Global sessionToken initialized: ${sessionToken}`);
+
 const socket = io({
     reconnection: true,
     reconnectionAttempts: Infinity,
@@ -29,12 +36,6 @@ let currentPage = 1; // Current page for pagination
 let infiniteScrollInitialized = false; // Flag to prevent multiple initializations
 const MESSAGES_PER_PAGE = 20; // Already 20, no change needed
 
-// Global session token for browser session - initialized once and persists
-if (!localStorage.getItem('global_session_token')) {
-    localStorage.setItem('global_session_token', 'sess_' + Math.random().toString(36).substr(2, 9));
-}
-const sessionToken = localStorage.getItem('global_session_token');
-
 function getStoredOfflineStart(uid) {
     try {
         return localStorage.getItem(OFFLINE_KEY_PREFIX + uid);
@@ -52,32 +53,6 @@ function setStoredOfflineStart(uid, ts) {
 function clearStoredOfflineStart(uid) {
     try {
         localStorage.removeItem(OFFLINE_KEY_PREFIX + uid);
-    } catch (_) {}
-}
-
-// --- Session Token Management ---
-function generateSessionToken() {
-    // Generate a unique session token using timestamp and random string
-    return Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 9);
-}
-
-function getStoredSessionToken(uid) {
-    try {
-        return localStorage.getItem(SESSION_TOKEN_KEY + uid);
-    } catch (_) {
-        return null;
-    }
-}
-
-function setStoredSessionToken(uid, token) {
-    try {
-        localStorage.setItem(SESSION_TOKEN_KEY + uid, token);
-    } catch (_) {}
-}
-
-function clearStoredSessionToken(uid) {
-    try {
-        localStorage.removeItem(SESSION_TOKEN_KEY + uid);
     } catch (_) {}
 }
 
@@ -976,6 +951,7 @@ function selectUser(userId) {
 
     // Tell the server which user we are with global session token
     console.log(`[DEBUG] Sending select user with userId: ${userId}, sessionToken: ${sessionToken}`);
+    console.log(`[DEBUG] Full payload being sent:`, { userId, sessionToken });
     socket.emit('select user', { userId, sessionToken });
 }
 
