@@ -20,6 +20,7 @@ let lastActivityTs = Date.now();
 let windowFocused = true;
 let pendingReadIds = new Set();
 let readFlushTimer = null;
+let hasReachedEndHistory = false; // Track if we've reached the end of history to prevent button re-creation
 
 // Infinite scroll variables
 let isLoading = false;
@@ -145,20 +146,22 @@ function forceScrollToBottom() {
 function updateStatusUI(id, status) {
     const listItem = document.querySelector(`li[data-id="${String(id)}"]`);
     if (!listItem) return;
-    const statusSpan = listItem.querySelector('.message-time .status-sent, .message-time .status-delivered, .message-time .status-read');
+    
+    const statusSpan = listItem.querySelector('.message-time span:not(.time-text)');
     if (!statusSpan) return;
-    statusSpan.classList.remove('status-sent');
-    statusSpan.classList.remove('status-delivered');
-    statusSpan.classList.remove('status-read');
+    
+    statusSpan.classList.remove('status-sent', 'status-delivered', 'status-read');
+    statusSpan.classList.add(`status-${status}`);
+    
     if (status === 'read') {
-        statusSpan.classList.add('status-read');
         statusSpan.innerHTML = '\u2713\u2713';
+        statusSpan.style.color = '#53bdeb'; // Kulay asul para sa blue checks
     } else if (status === 'delivered') {
-        statusSpan.classList.add('status-delivered');
         statusSpan.innerHTML = '\u2713\u2713';
+        statusSpan.style.color = '#8696a0';
     } else {
-        statusSpan.classList.add('status-sent');
         statusSpan.innerHTML = '\u2713';
+        statusSpan.style.color = '#8696a0';
     }
 }
 
@@ -506,6 +509,12 @@ function showLoadingIndicator(show) {
 function showLoadMoreButton() {
     console.log('showLoadMoreButton called - fullHistory:', fullHistory ? fullHistory.length : 'none');
     
+    // Guard clause: if we've reached end of history, don't show button
+    if (hasReachedEndHistory) {
+        console.log('Already reached end of history, skipping button creation');
+        return;
+    }
+    
     // Don't show button if there are currently displayed messages
     const displayedMessages = messages.querySelectorAll('li:not(.date-separator)');
     if (displayedMessages.length === 0) {
@@ -838,6 +847,7 @@ socket.on('history', (messagesHistory) => {
             const loadMoreBtn = document.getElementById('load-more-btn');
             if (loadMoreBtn) loadMoreBtn.remove();
             hasMoreMessages = false;
+            hasReachedEndHistory = true; // Set flag to prevent button re-creation
         }
         
         // Adjust scroll position to maintain user's view
