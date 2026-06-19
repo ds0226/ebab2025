@@ -1133,7 +1133,10 @@ socket.on('typing', (data) => {
 // --- Enhanced Presence Update Handler ---
 socket.off('presence update'); // Remove any existing listener to prevent duplicates
 socket.on('presence update', (presenceData) => {
-    console.log('Presence update received:', presenceData);
+    // Only log occasionally to reduce console spam
+    if (Math.random() < 0.1) {
+        console.log('Presence update received:', presenceData);
+    }
     latestPresenceData = presenceData;
     for (const uid in presenceData) {
         const p = presenceData[uid];

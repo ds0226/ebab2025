@@ -513,10 +513,10 @@ function showLoadMoreButton() {
         return;
     }
     
-    // Check if button already exists
+    // Check if button already exists - GUARD CLAUSE to prevent duplicates
     let loadMoreBtn = document.getElementById('load-more-btn');
     if (loadMoreBtn) {
-        console.log('Load more button already exists, skipping');
+        console.log('Load more button already exists, skipping creation to prevent layout shift');
         return;
     }
     
@@ -606,9 +606,14 @@ async function initChat() {
         }
         
         // FIX: Only show load more button if exactly 20 messages were received (indicates there may be more)
+        // Add guard clause to prevent duplicate button creation
         if (initialMessages.length === MESSAGES_PER_PAGE) {
             hasMoreMessages = true;
-            showLoadMoreButton();
+            if (!document.getElementById('load-more-btn')) {
+                showLoadMoreButton();
+            } else {
+                console.log('Load more button already exists in initChat, skipping creation');
+            }
         } else {
             hasMoreMessages = false;
         }
@@ -937,7 +942,12 @@ socket.on('history', (messagesHistory) => {
         const loadMoreBtn = document.getElementById('load-more-btn');
         if (loadMoreBtn) loadMoreBtn.style.display = 'block';
         hasMoreMessages = true;
-        showLoadMoreButton();
+        // Add guard clause to prevent duplicate button creation
+        if (!document.getElementById('load-more-btn')) {
+            showLoadMoreButton();
+        } else {
+            console.log('Load more button already exists in pagination handler, skipping creation');
+        }
     }
 });
 
@@ -1074,7 +1084,12 @@ socket.on('user selected', (success) => {
             } else {
                 console.log("Exactly 20 messages loaded. Keeping scroll/load-more active for pagination.");
                 hasMoreMessages = true;
-                showLoadMoreButton();
+                // Add guard clause to prevent duplicate button creation
+                if (!document.getElementById('load-more-btn')) {
+                    showLoadMoreButton();
+                } else {
+                    console.log('Load more button already exists in pending history, skipping creation');
+                }
             }
             
             pendingHistory = null; // Clear pending history after checking
@@ -1144,8 +1159,12 @@ socket.on('typing', (data) => {
 });
 
 // --- Enhanced Presence Update Handler ---
+socket.off('presence update'); // Remove any existing listener to prevent duplicates
 socket.on('presence update', (presenceData) => {
-    console.log('Presence update received:', presenceData);
+    // Only log occasionally to reduce console spam
+    if (Math.random() < 0.1) {
+        console.log('Presence update received:', presenceData);
+    }
     latestPresenceData = presenceData;
     for (const uid in presenceData) {
         const p = presenceData[uid];
@@ -1160,6 +1179,7 @@ socket.on('presence update', (presenceData) => {
             }
         }
     }
+    // Only update UI indicators, do not trigger any rendering functions
     updatePresenceDisplays();
     lastActivityTs = Date.now();
     if (!presenceTickerId) {
