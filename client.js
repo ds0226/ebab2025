@@ -776,7 +776,10 @@ function initInfiniteScroll() {
 }
 
 // --- Socket.IO Event Listeners ---
-socket.on('chat message', (msg) => {
+
+// Function to handle incoming chat messages
+function handleChatMessage(msg) {
+    console.log('[DEBUG] Received chat message:', msg);
     // Check if a list item with this ID already exists (prevents duplicates when sender receives own msg)
     if (!document.querySelector(`li[data-id="${String(msg._id)}"]`)) {
         renderMessage(msg);
@@ -799,6 +802,22 @@ socket.on('chat message', (msg) => {
             }
         }
     }
+}
+
+// Set up the chat message listener
+socket.on('chat message', handleChatMessage);
+
+// Re-establish listener on reconnection to prevent message loss
+socket.on('connect', () => {
+    console.log('[DEBUG] Socket connected, re-establishing chat message listener');
+    socket.off('chat message'); // Remove any existing listener to prevent duplicates
+    socket.on('chat message', handleChatMessage);
+});
+
+socket.on('reconnect', () => {
+    console.log('[DEBUG] Socket reconnected, re-establishing chat message listener');
+    socket.off('chat message'); // Remove any existing listener to prevent duplicates
+    socket.on('chat message', handleChatMessage);
 });
 
 socket.on('history', (messagesHistory) => {
