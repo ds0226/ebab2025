@@ -609,7 +609,11 @@ function showLoadMoreButton() {
             // Update page and show "Load more" button if there are more messages
             currentPage = nextPage;
             if (uniqueOlderMessages.length === MESSAGES_PER_PAGE) {
-                showLoadMoreButton();
+                if (!document.getElementById('load-more-btn')) {
+                    showLoadMoreButton();
+                } else {
+                    console.log('Load more button already exists in infinite scroll, skipping creation');
+                }
             }
         } else {
             console.log('No more older messages to load');
@@ -654,8 +658,13 @@ async function initChat() {
         }
         
         // Show "Load More" button if we received a full page (indicates there may be more)
+        // Only show button if it doesn't already exist to prevent duplicate creation
         if (initialMessages.length === MESSAGES_PER_PAGE) {
-            showLoadMoreButton();
+            if (!document.getElementById('load-more-btn')) {
+                showLoadMoreButton();
+            } else {
+                console.log('Load more button already exists in initChat, skipping creation');
+            }
         }
         
         // Initialize infinite scroll
@@ -872,10 +881,16 @@ socket.on('history', (messagesHistory) => {
     });
     
     // Show load more button if we received a full page (indicates there may be more)
+    // Only show button if it doesn't already exist to prevent duplicate creation
     if (messagesHistory && messagesHistory.length === MESSAGES_PER_PAGE) {
         hasMoreMessages = true; // Explicitly set hasMoreMessages to true
         console.log('✅ hasMoreMessages set to true - received full page of', MESSAGES_PER_PAGE, 'messages');
-        showLoadMoreButton();
+        // Check if button exists before calling showLoadMoreButton
+        if (!document.getElementById('load-more-btn')) {
+            showLoadMoreButton();
+        } else {
+            console.log('Load more button already exists, skipping creation');
+        }
     } else {
         hasMoreMessages = false; // Explicitly set hasMoreMessages to false
         console.log('❌ hasMoreMessages set to false - received only', messagesHistory.length, 'messages (less than', MESSAGES_PER_PAGE, ')');
@@ -1025,8 +1040,13 @@ socket.on('user selected', (success) => {
             pendingHistory.forEach(renderMessage);
             
             // Show load more button if we received a full page (indicates there may be more)
+            // Only show button if it doesn't already exist to prevent duplicate creation
             if (pendingHistory.length === MESSAGES_PER_PAGE) {
-                showLoadMoreButton();
+                if (!document.getElementById('load-more-btn')) {
+                    showLoadMoreButton();
+                } else {
+                    console.log('Load more button already exists in pending history, skipping creation');
+                }
             }
             
             pendingHistory = null; // Clear pending history after checking
@@ -1111,6 +1131,7 @@ socket.on('typing', (data) => {
 });
 
 // --- Enhanced Presence Update Handler ---
+socket.off('presence update'); // Remove any existing listener to prevent duplicates
 socket.on('presence update', (presenceData) => {
     console.log('Presence update received:', presenceData);
     latestPresenceData = presenceData;
@@ -1127,6 +1148,7 @@ socket.on('presence update', (presenceData) => {
             }
         }
     }
+    // Only update UI indicators, do not trigger any rendering functions
     updatePresenceDisplays();
     lastActivityTs = Date.now();
     if (!presenceTickerId) {
