@@ -21,6 +21,7 @@ let windowFocused = true;
 let pendingReadIds = new Set();
 let readFlushTimer = null;
 let hasReachedEndHistory = false; // Track if we've reached the end of history to prevent button re-creation
+let isButtonLoadRequest = false; // Track if the current history request was triggered by button click
 
 // Infinite scroll variables
 let isLoading = false;
@@ -553,6 +554,9 @@ function showLoadMoreButton() {
                 return;
             }
             
+            // Set flag to indicate this is a button-triggered load request
+            isButtonLoadRequest = true;
+            
             loadMoreBtn.remove();
             
             // Get ALL message bubbles and find the absolute oldest timestamp
@@ -849,16 +853,22 @@ socket.on('history', (messagesHistory) => {
             console.log('⚠️ No unique messages to prepend. Skipping date separator processing.');
             console.log('🚫 Reached end of history.');
             hasMoreMessages = false;
-            hasReachedEndHistory = true; // Set flag to indicate end of history
-            // Update button to show end-of-history state
-            const loadMoreBtn = document.getElementById('load-more-btn');
-            if (loadMoreBtn) {
-                loadMoreBtn.textContent = 'No more messages to load!';
-                loadMoreBtn.disabled = true;
-                loadMoreBtn.style.cursor = 'not-allowed';
-                loadMoreBtn.style.backgroundColor = '#1f2c33';
+            // Only set hasReachedEndHistory if this was a button-triggered request
+            if (isButtonLoadRequest) {
+                hasReachedEndHistory = true; // Set flag to indicate end of history
+                // Update button to show end-of-history state
+                const loadMoreBtn = document.getElementById('load-more-btn');
+                if (loadMoreBtn) {
+                    loadMoreBtn.textContent = 'No more messages to load!';
+                    loadMoreBtn.disabled = true;
+                    loadMoreBtn.style.cursor = 'not-allowed';
+                    loadMoreBtn.style.backgroundColor = '#1f2c33';
+                }
             }
         }
+        
+        // Reset the button load request flag
+        isButtonLoadRequest = false;
         
         // Adjust scroll position to maintain user's view
         messages.scrollTop = scrollTopBefore + (messages.scrollHeight - scrollHeightBefore);
@@ -872,6 +882,10 @@ socket.on('history', (messagesHistory) => {
         fullHistory = messagesHistory;
         console.log('Stored fullHistory:', fullHistory.length, 'messages');
         lastActivityTs = Date.now();
+        
+        // Reset hasReachedEndHistory on initial history load
+        hasReachedEndHistory = false;
+        
         messagesHistory.sort((a, b) => {
             const ta = new Date(a.timestamp || 0).getTime();
             const tb = new Date(b.timestamp || 0).getTime();

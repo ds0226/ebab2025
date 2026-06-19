@@ -29,6 +29,7 @@ let windowFocused = true;
 let pendingReadIds = new Set();
 let readFlushTimer = null;
 let hasReachedEndHistory = false; // Track if we've reached the end of history to prevent button re-creation
+let isButtonLoadRequest = false; // Track if the current history request was triggered by button click
 
 // Infinite scroll variables
 let isLoading = false;
@@ -543,6 +544,9 @@ function showLoadMoreButton() {
             return;
         }
         
+        // Set flag to indicate this is a button-triggered load request
+        isButtonLoadRequest = true;
+        
         loadMoreBtn.remove();
         
         // Save current scroll height before loading
@@ -562,20 +566,28 @@ function showLoadMoreButton() {
             
             if (uniqueOlderMessages.length === 0) {
                 console.log('No new unique messages to add');
-                hasReachedEndHistory = true;
-                // Re-show button with end-of-history state
-                showLoadMoreButton();
-                const btn = document.getElementById('load-more-btn');
-                if (btn) {
-                    btn.textContent = 'No more messages to load!';
-                    btn.disabled = true;
-                    btn.style.cursor = 'not-allowed';
-                    btn.style.backgroundColor = '#1f2c33';
+                // Only set hasReachedEndHistory if this was a button-triggered request
+                if (isButtonLoadRequest) {
+                    hasReachedEndHistory = true;
+                    // Re-show button with end-of-history state
+                    showLoadMoreButton();
+                    const btn = document.getElementById('load-more-btn');
+                    if (btn) {
+                        btn.textContent = 'No more messages to load!';
+                        btn.disabled = true;
+                        btn.style.cursor = 'not-allowed';
+                        btn.style.backgroundColor = '#1f2c33';
+                    }
                 }
+                // Reset the button load request flag
+                isButtonLoadRequest = false;
                 return;
             }
             
             console.log('Adding', uniqueOlderMessages.length, 'unique messages');
+            
+            // Reset the button load request flag after successful load
+            isButtonLoadRequest = false;
             
             // Server returns messages in chronological order (oldest first)
             // No need to reverse
@@ -875,6 +887,9 @@ socket.on('history', (messagesHistory) => {
     fullHistory = messagesHistory;
     console.log('Stored fullHistory:', fullHistory.length, 'messages');
     lastActivityTs = Date.now();
+    
+    // Reset hasReachedEndHistory on initial history load
+    hasReachedEndHistory = false;
     
     // Server returns messages in chronological order (oldest first)
     // No need to reverse
