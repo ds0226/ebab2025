@@ -500,12 +500,6 @@ function showLoadingIndicator(show) {
 function showLoadMoreButton() {
     console.log('showLoadMoreButton called');
     
-    // Guard clause: if we've reached end of history, don't show button
-    if (hasReachedEndHistory) {
-        console.log('Already reached end of history, skipping button creation');
-        return;
-    }
-    
     // Check if there are currently displayed messages
     const displayedMessages = messages.querySelectorAll('li:not(.date-separator)');
     if (displayedMessages.length === 0) {
@@ -539,6 +533,16 @@ function showLoadMoreButton() {
     
     loadMoreBtn.addEventListener('click', async () => {
         console.log('Load Older Messages button clicked!');
+        
+        // If we've reached end of history, show feedback and disable button
+        if (hasReachedEndHistory) {
+            loadMoreBtn.textContent = 'No more messages to load!';
+            loadMoreBtn.disabled = true;
+            loadMoreBtn.style.cursor = 'not-allowed';
+            loadMoreBtn.style.backgroundColor = '#1f2c33';
+            return;
+        }
+        
         loadMoreBtn.remove();
         
         // Save current scroll height before loading
@@ -558,6 +562,16 @@ function showLoadMoreButton() {
             
             if (uniqueOlderMessages.length === 0) {
                 console.log('No new unique messages to add');
+                hasReachedEndHistory = true;
+                // Re-show button with end-of-history state
+                showLoadMoreButton();
+                const btn = document.getElementById('load-more-btn');
+                if (btn) {
+                    btn.textContent = 'No more messages to load!';
+                    btn.disabled = true;
+                    btn.style.cursor = 'not-allowed';
+                    btn.style.backgroundColor = '#1f2c33';
+                }
                 return;
             }
             

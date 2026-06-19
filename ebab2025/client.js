@@ -509,12 +509,6 @@ function showLoadingIndicator(show) {
 function showLoadMoreButton() {
     console.log('showLoadMoreButton called - fullHistory:', fullHistory ? fullHistory.length : 'none');
     
-    // Guard clause: if we've reached end of history, don't show button
-    if (hasReachedEndHistory) {
-        console.log('Already reached end of history, skipping button creation');
-        return;
-    }
-    
     // Don't show button if there are currently displayed messages
     const displayedMessages = messages.querySelectorAll('li:not(.date-separator)');
     if (displayedMessages.length === 0) {
@@ -549,6 +543,16 @@ function showLoadMoreButton() {
         loadMoreBtn.addEventListener('click', () => {
             console.log('Load Previous Day button clicked!');
             console.log('DEBUG: Socket connected:', socket.connected);
+            
+            // If we've reached end of history, show feedback and disable button
+            if (hasReachedEndHistory) {
+                loadMoreBtn.textContent = 'No more messages to load!';
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.style.cursor = 'not-allowed';
+                loadMoreBtn.style.backgroundColor = '#1f2c33';
+                return;
+            }
+            
             loadMoreBtn.remove();
             
             // Get ALL message bubbles and find the absolute oldest timestamp
@@ -843,11 +847,17 @@ socket.on('history', (messagesHistory) => {
             console.log('DEBUG: Incremental date separator processing completed');
         } else {
             console.log('⚠️ No unique messages to prepend. Skipping date separator processing.');
-            console.log('🚫 Reached end of history. Hiding Load More button.');
-            const loadMoreBtn = document.getElementById('load-more-btn');
-            if (loadMoreBtn) loadMoreBtn.remove();
+            console.log('🚫 Reached end of history.');
             hasMoreMessages = false;
-            hasReachedEndHistory = true; // Set flag to prevent button re-creation
+            hasReachedEndHistory = true; // Set flag to indicate end of history
+            // Update button to show end-of-history state
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            if (loadMoreBtn) {
+                loadMoreBtn.textContent = 'No more messages to load!';
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.style.cursor = 'not-allowed';
+                loadMoreBtn.style.backgroundColor = '#1f2c33';
+            }
         }
         
         // Adjust scroll position to maintain user's view
