@@ -800,6 +800,14 @@ function handleChatMessage(msg) {
                     senderID: msg.senderID || msg.sender
                 });
             }
+            // Trigger read receipt for incoming messages when chat window is open and visible
+            if (document.visibilityState === 'visible' && windowFocused) {
+                console.log('[DEBUG] Triggering read receipt for message:', msg._id);
+                socket.emit('message read', { 
+                    readerID: currentUser,
+                    messageID: msg._id 
+                });
+            }
         }
     }
 }
@@ -842,6 +850,7 @@ socket.on('history', (messagesHistory) => {
     console.log(`📋 Displaying ${messagesHistory.length} messages`);
     
     const deliverIds = [];
+    const readIds = [];
     messagesHistory.forEach((msg, index) => {
         if (!document.querySelector(`li[data-id="${msg._id}"]`)) {
             console.log(`🎨 Rendering message ${index + 1}/${messagesHistory.length}:`, {
@@ -855,6 +864,10 @@ socket.on('history', (messagesHistory) => {
         const isIncoming = (msg.senderID || msg.sender) !== currentUser;
         if (isIncoming && msg.status === 'sent' && msg._id) {
             deliverIds.push(msg._id);
+        }
+        // Trigger read receipt for incoming messages that are not yet read
+        if (isIncoming && msg.status !== 'read' && msg._id && document.visibilityState === 'visible' && windowFocused) {
+            readIds.push(msg._id);
         }
     });
     
@@ -876,6 +889,11 @@ socket.on('history', (messagesHistory) => {
         const otherUser = currentUser === 'i' ? 'x' : 'i';
         if (deliverIds.length > 0) {
             socket.emit('messages delivered', { messageIDs: deliverIds, senderID: otherUser });
+        }
+        // Emit read receipts for incoming messages
+        if (readIds.length > 0) {
+            console.log('[DEBUG] Emitting read receipts for history messages:', readIds);
+            socket.emit('messages read', { readerID: currentUser, messageIDs: readIds });
         }
         socket.emit('mark conversation read', { readerID: currentUser });
     }
