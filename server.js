@@ -74,8 +74,8 @@ const io = new Server(server, {
             : isLocalHost;
         callback(null, ok);
     },
-    pingInterval: 5000,
-    pingTimeout: 12000
+    pingInterval: 8000,
+    pingTimeout: 6000
 }); 
 
 // --- MongoDB Configuration ---
@@ -744,19 +744,15 @@ function startServerLogic() {
         socket.on('chat message', async (msg) => {
             if (!rateLimit(socket, 'chat')) return;
             if (!isValidMessagePayload(msg)) return;
-            // Add initial status and save
+            // Add initial status
             msg.status = 'sent';
-            let result;
-            try {
-                result = await dbInsert(msg);
-                console.log(`Message (Type: ${msg.type}) saved to DB.`);
-                // CRITICAL: Add the MongoDB _id back to the message object before broadcasting
-                msg._id = String(result.insertedId);
-            } catch (e) {
-                console.error('Error saving message:', e);
-            }
             
-            io.emit('chat message', msg); 
+            // Mag-assign ng temp ID agad para may data-id ang DOM element
+            const tempId = new ObjectId();
+            msg._id = String(tempId);
+
+            // I-broadcast AGAD — instant ang pakiramdam para sa user
+            io.emit('chat message', msg);
 
             // Robust presence update: mark sender online with latest activity
             const sid = msg.senderID || msg.sender;
@@ -769,43 +765,48 @@ function startServerLogic() {
                 broadcastPresenceUpdate();
             }
 
-            // Delivery status: if receiver is online, mark delivered and notify sender
-            const receiverID = sid === 'i' ? 'x' : 'i';
-            const receiverOnline = activeUsers[receiverID] !== null;
-            if (receiverOnline) {
-                try {
-                    await dbUpdateOne(result.insertedId, { $set: { status: 'delivered' } });
-                } catch (e) {
-                    console.error('Error updating message to delivered:', e);
-                }
-                socket.emit('message delivered', { messageID: String(result.insertedId) });
-            }
+            // Isave sa DB sa background, tapos i-confirm ang real ID
+            dbInsert({ ...msg, _id: undefined }).then(result => {
+                const realId = String(result.insertedId);
+                io.emit('message id confirmed', { tempId: String(tempId), realId });
+                console.log(`Message (Type: ${msg.type}) saved to DB with real ID: ${realId}`);
 
-            (async () => {
-                try {
-                    const otherUserId = sid === 'i' ? 'x' : 'i';
-                    const pendingOpp = await dbFindIdsBySenderStatus(otherUserId, 'sent');
-                    if (pendingOpp.length > 0) {
-                        const ids = pendingOpp.map(doc => doc._id);
-                        await dbUpdateManyByIds(ids, { $set: { status: 'delivered' } });
-                        const otherSocket = activeUsers[otherUserId];
-                        if (otherSocket) {
-                            ids.forEach(id => {
-                                io.to(otherSocket).emit('message delivered', { messageID: String(id) });
+                // Delivery status: if receiver is online, mark delivered and notify sender
+                const receiverID = sid === 'i' ? 'x' : 'i';
+                const receiverOnline = activeUsers[receiverID] !== null;
+                if (receiverOnline) {
+                    dbUpdateOne(realId, { $set: { status: 'delivered' } }).then(() => {
+                        socket.emit('message delivered', { messageID: realId });
+                    }).catch(e => console.error('Error updating message to delivered:', e));
+                }
+
+                // Handle pending message delivery for opponent
+                (async () => {
+                    try {
+                        const otherUserId = sid === 'i' ? 'x' : 'i';
+                        const pendingOpp = await dbFindIdsBySenderStatus(otherUserId, 'sent');
+                        if (pendingOpp.length > 0) {
+                            const ids = pendingOpp.map(doc => doc._id);
+                            await dbUpdateManyByIds(ids, { $set: { status: 'delivered' } });
+                            const otherSocket = activeUsers[otherUserId];
+                            if (otherSocket) {
+                                ids.forEach(id => {
+                                    io.to(otherSocket).emit('message delivered', { messageID: String(id) });
+                                });
+                            }
+                        }
+                        const deliveredToReader = await dbFindIdsBySenderStatus(otherUserId, 'delivered');
+                        if (deliveredToReader.length > 0) {
+                            const idsRead = deliveredToReader.map(doc => doc._id);
+                            await dbUpdateManyByIds(idsRead, { $set: { status: 'read' } });
+                            console.log('Reply read upgrade:', { reader: sid, count: idsRead.length });
+                            idsRead.forEach(id => {
+                                io.emit('message status update', { messageID: String(id), status: 'read' });
                             });
                         }
-                    }
-                    const deliveredToReader = await dbFindIdsBySenderStatus(otherUserId, 'delivered');
-                    if (deliveredToReader.length > 0) {
-                        const idsRead = deliveredToReader.map(doc => doc._id);
-                        await dbUpdateManyByIds(idsRead, { $set: { status: 'read' } });
-                        console.log('Reply read upgrade:', { reader: sid, count: idsRead.length });
-                        idsRead.forEach(id => {
-                            io.emit('message status update', { messageID: String(id), status: 'read' });
-                        });
-                    }
-                } catch (_) {}
-            })();
+                    } catch (_) {}
+                })();
+            }).catch(e => console.error('Error saving message:', e));
         });
 
         // --- Read Receipt Event (NEW) ---
@@ -1044,7 +1045,7 @@ function startServerLogic() {
             });
             
             req.end();
-        }, 300000); // Every 5 minutes
+        }, 240000); // Every 4 minutes
 
         console.log('🚀 24/7 monitoring enabled - Keep-alive systems active');
     });

@@ -3,9 +3,10 @@
 const socket = io({
     reconnection: true,
     reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    timeout: 20000,
+    reconnectionDelay: 500,
+    reconnectionDelayMax: 3000,
+    randomizationFactor: 0.3,
+    timeout: 10000,
     transports: ["websocket", "polling"]
 }); // Auto-connect with robust reconnection
 let currentUser = null;
@@ -716,6 +717,8 @@ socket.on('chat message', (msg) => {
 });
 
 socket.on('history', (messagesHistory) => {
+    const loader = document.getElementById('initial-loader');
+    if (loader) loader.remove();
     if (!currentUser) {
         pendingHistory = messagesHistory;
         fullHistory = messagesHistory; // Store full history
@@ -1172,6 +1175,11 @@ socket.on('history after', (newMessages) => {
     lastActivityTs = Date.now();
 });
 
+socket.on('message id confirmed', ({ tempId, realId }) => {
+    const li = document.querySelector(`li[data-id="${tempId}"]`);
+    if (li) li.dataset.id = realId;
+});
+
 // --- Enhanced Presence Update Handler ---
 socket.off('presence update'); // Remove any existing listener to prevent duplicates
 socket.on('presence update', (presenceData) => {
@@ -1225,6 +1233,11 @@ document.addEventListener('DOMContentLoaded', () => {
         otherUserName.textContent = otherUser.toUpperCase();
         socket.emit('select user', currentUser);
         socket.emit('get presence update');
+        const loadingLi = document.createElement('li');
+        loadingLi.id = 'initial-loader';
+        loadingLi.style.cssText = 'text-align:center; color:#8696a0; font-size:0.85rem; padding:20px;';
+        loadingLi.textContent = 'Loading messages…';
+        messages.appendChild(loadingLi);
         socket.emit('get history', { limit: 20 });
         // Removed automatic mark as read on load - let user actually read messages
     }
