@@ -16,13 +16,6 @@ const app = express();
 const server = http.createServer(app);
 const port = process.env.PORT || 3000;
 
-// --- Cloudinary Configuration ---
-console.log("DEBUG: Cloudinary Config:", {
-    cloud_name: !!process.env.CLOUD_NAME,
-    api_key: !!process.env.API_KEY,
-    api_secret: !!process.env.CLOUDINARY_API_SECRET
-});
-
 cloudinary.config({
     cloud_name: process.env.CLOUD_NAME,
     api_key: process.env.API_KEY,
@@ -31,10 +24,26 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: {
-        folder: 'ebab2025_chat_uploads',
-        format: async (req, file) => 'jpg',
-        public_id: (req, file) => Date.now() + '-' + file.originalname.replace(/[^a-z0-9.]/gi, '_')
+    params: async (req, file) => {
+        const mime = file.mimetype || '';
+        let resource_type = 'auto';
+        let format;
+        if (mime.startsWith('image/')) {
+            resource_type = 'image';
+            format = mime === 'image/png' ? 'png' : mime === 'image/gif' ? 'gif' : 'jpg';
+        } else if (mime.startsWith('video/')) {
+            resource_type = 'video';
+            format = undefined;
+        } else {
+            resource_type = 'raw';
+            format = undefined;
+        }
+        return {
+            folder: 'ebab2025_chat_uploads',
+            resource_type,
+            format,
+            public_id: Date.now() + '-' + file.originalname.replace(/[^a-z0-9.]/gi, '_'),
+        };
     },
 });
 
@@ -70,7 +79,7 @@ const io = new Server(server, {
 }); 
 
 // --- MongoDB Configuration ---
-const uri = process.env.MONGO_URI || "mongodb+srv://davidsonsolomon26:Davien11@ebab.4fbr6fo.mongodb.net/?appName=ebab"; 
+const uri = process.env.MONGO_URI; 
 const dbName = "chatAppDB"; 
 const collectionName = "messages";
 let messagesCollection; 
@@ -302,7 +311,6 @@ function broadcastPresenceUpdate() {
     }
     
     io.emit('presence update', presenceData);
-    console.log('Presence update broadcasted:', presenceData);
 }
 
 function reconcilePresence() {
@@ -386,25 +394,18 @@ function startServerLogic() {
         }
     });
 
-    // Debug middleware for /upload requests
-    app.use((req, res, next) => {
-        if (req.path === '/upload') {
-            console.log("DEBUG: Incoming request to /upload");
-        }
-        next();
-    });
-
     // HTTP endpoint for file uploads
     app.post('/upload', upload.single('mediaFile'), (req, res) => {
-        console.log("DEBUG: Reached the /upload route handler. File exists:", !!req.file);
-
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        // Assuming multer-storage-cloudinary attaches the path to req.file.path
-        console.log("DEBUG: File uploaded successfully to:", req.file.path);
-        res.status(200).json({ url: req.file.path });
+        const mime = req.file.mimetype || '';
+        let mediaType = 'document';
+        if (mime.startsWith('image/')) mediaType = 'image';
+        else if (mime.startsWith('video/')) mediaType = 'video';
+
+        res.status(200).json({ url: req.file.path, mediaType });
     });
 
     // HTTP endpoint for explicit offline notification (used with beforeunload)
@@ -433,7 +434,7 @@ function startServerLogic() {
     // Global error handling middleware
     app.use((err, req, res, next) => {
         console.error("DEBUG: GLOBAL ERROR HANDLER -", err);
-        res.status(400).json({ error: err.message });
+        res.status(err.status || 500).json({ error: err.message });
     });
 
 
@@ -487,13 +488,9 @@ function startServerLogic() {
             const userId = typeof data === 'string' ? data : data.userId;
             const sessionToken = typeof data === 'object' ? data.sessionToken : null;
             
-            console.log(`[DEBUG] select user - userId: ${userId}, sessionToken: ${sessionToken}, storedSession: ${userSessions[userId]}, activeUsers: ${activeUsers[userId]}`);
-            
             // Check if user is available or if the session token matches
             const isAvailable = activeUsers[userId] === null;
             const sessionMatches = sessionToken && userSessions[userId] === sessionToken;
-            
-            console.log(`[DEBUG] isAvailable: ${isAvailable}, sessionMatches: ${sessionMatches}`);
             
             // Check if old socket is disconnected or from same IP (aggressive mode)
             let oldSocketDisconnected = false;
@@ -506,7 +503,6 @@ function startServerLogic() {
                 // Check if old socket is still connected
                 if (!oldSocket || !oldSocket.connected) {
                     oldSocketDisconnected = true;
-                    console.log(`[DEBUG] Old socket for user ${userId} is disconnected`);
                 }
                 
                 // Check if old socket is from same IP address
@@ -515,12 +511,9 @@ function startServerLogic() {
                     const newIP = socket.handshake.address;
                     if (oldIP === newIP) {
                         sameIPAddress = true;
-                        console.log(`[DEBUG] Old and new sockets are from same IP: ${oldIP}`);
                     }
                 }
             }
-            
-            console.log(`[DEBUG] oldSocketDisconnected: ${oldSocketDisconnected}, sameIPAddress: ${sameIPAddress}`);
             
             // Allow connection if:
             // 1. User is available (not currently active)
@@ -544,7 +537,6 @@ function startServerLogic() {
                 activeUsers[userId] = socket.id;
                 if (sessionToken) {
                     userSessions[userId] = sessionToken;
-                    console.log(`[DEBUG] Stored session token for user ${userId}: ${sessionToken}`);
                 }
                 
                 userPresence[userId].socketId = socket.id;
@@ -577,7 +569,6 @@ function startServerLogic() {
                     }
                 })();
             } else {
-                console.log(`[DEBUG] User selection FAILED for ${userId} - not available and session doesn't match`);
                 socket.emit('user selected', false);
             }
             const inUseList = Object.keys(activeUsers).filter(key => activeUsers[key] !== null);
@@ -685,19 +676,13 @@ function startServerLogic() {
                     const before = data?.before;
                     const limit = data?.limit || 20;
 
-                    console.log("SERVER LOG: received get history with data:", JSON.stringify(data));
-                    console.log("SERVER LOG: before:", before);
-                    console.log("SERVER LOG: limit:", limit);
-
                     let query = {};
 
                     if (before) {
-                        console.log("SERVER LOG: Received request for history before:", before);
                         // Apply $lt filter to accommodate both standard Strings or formal Date objects
                         query.timestamp = {
                             $lt: before
                         };
-                        console.log("SERVER LOG: Query constructed:", JSON.stringify(query));
                     }
 
                     let messagesHistory;
@@ -719,20 +704,42 @@ function startServerLogic() {
                     }
                     
                     messagesHistory = messagesHistory.map(m => ({ ...m, _id: String(m._id) }));
-                    console.log(`SERVER LOG: Emitted ${messagesHistory.length} historical messages back to client.`);
-                    if (messagesHistory.length > 0) {
-                        console.log("SERVER LOG: first message timestamp:", messagesHistory[0].timestamp);
-                        console.log("SERVER LOG: last message timestamp:", messagesHistory[messagesHistory.length - 1].timestamp);
-                    }
                     
                     // Reverse to chronological order (oldest first) before sending
                     const chronologicalMessages = messagesHistory.reverse();
                     socket.emit('history', chronologicalMessages);
                 } catch (err) {
-                    console.error("SERVER ERROR inside get history handler:", err);
+                    console.error("Error in get history handler:", err);
                 }
             });
-        
+
+        socket.on('get history after', async (data) => {
+            try {
+                const after = data?.after;
+                const limit = data?.limit || 50;
+                let messagesHistory;
+                if (useMemoryStore || !messagesCollection) {
+                    messagesHistory = [...messagesMemory];
+                    if (after) {
+                        messagesHistory = messagesHistory.filter(msg => new Date(msg.timestamp) > new Date(after));
+                    }
+                    messagesHistory.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    messagesHistory = messagesHistory.slice(0, limit);
+                } else {
+                    const query = after ? { timestamp: { $gt: after } } : {};
+                    messagesHistory = await messagesCollection
+                        .find(query)
+                        .sort({ timestamp: 1 })
+                        .limit(limit)
+                        .toArray();
+                }
+                messagesHistory = messagesHistory.map(m => ({ ...m, _id: String(m._id) }));
+                socket.emit('history after', messagesHistory);
+            } catch (err) {
+                console.error('Error in get history after handler:', err);
+            }
+        });
+
         // --- Chat Message Event ---
         socket.on('chat message', async (msg) => {
             if (!rateLimit(socket, 'chat')) return;

@@ -286,7 +286,7 @@ async function uploadFile(file) {
         const messageData = {
             senderID: currentUser,
             message: data.url,
-            type: 'image',
+            type: data.mediaType || 'image',
             timestamp: new Date().toISOString()
         };
         socket.emit('chat message', messageData);
@@ -716,13 +716,9 @@ socket.on('chat message', (msg) => {
 });
 
 socket.on('history', (messagesHistory) => {
-    console.log('📨 History event received:', messagesHistory.length, 'messages');
-    console.log('👤 Current user:', currentUser || 'none');
-    
     if (!currentUser) {
         pendingHistory = messagesHistory;
         fullHistory = messagesHistory; // Store full history
-        console.log('📝 History stored as pending, waiting for user selection');
         return;
     }
     
@@ -731,17 +727,11 @@ socket.on('history', (messagesHistory) => {
     const isPagination = existingMessages.length > 0;
     
     if (isPagination) {
-        console.log('📄 Pagination response - prepending messages');
-        console.log('DEBUG: Received', messagesHistory.length, 'messages from server');
-        console.log('DEBUG: Message IDs received:', messagesHistory.map(m => m._id));
-        console.log('DEBUG: Message timestamps received:', messagesHistory.map(m => m.timestamp));
-        console.log('DEBUG: DOM message count before prepending:', messages.querySelectorAll('li:not(.date-separator)').length);
         
         // Filter out duplicates before updating fullHistory
         const uniqueNewMessages = messagesHistory.filter(
             newMsg => !fullHistory.some(existingMsg => existingMsg._id === newMsg._id)
         );
-        console.log('DEBUG: Filtered to', uniqueNewMessages.length, 'unique messages from', messagesHistory.length, 'received');
         
         // Sort uniqueNewMessages chronologically (oldest first) before processing
         uniqueNewMessages.sort((a, b) => {
@@ -749,11 +739,9 @@ socket.on('history', (messagesHistory) => {
             const tb = new Date(b.timestamp || 0).getTime();
             return ta - tb;
         });
-        console.log('DEBUG: Sorted unique messages chronologically for processing');
         
         // Prepend unique new messages to fullHistory
         fullHistory = [...uniqueNewMessages, ...fullHistory];
-        console.log('Updated fullHistory:', fullHistory.length, 'messages');
         
         // Sort fullHistory chronologically (oldest first)
         fullHistory.sort((a, b) => {
@@ -771,7 +759,6 @@ socket.on('history', (messagesHistory) => {
         messages.querySelectorAll('.date-separator[data-date]').forEach(sep => {
             existingDateKeys.add(sep.dataset.date);
         });
-        console.log('DEBUG: Existing dateKeys in DOM:', Array.from(existingDateKeys));
         
         // Prepend messages to DOM (insert at top)
         const fragment = document.createDocumentFragment();
@@ -795,7 +782,6 @@ socket.on('history', (messagesHistory) => {
                     fragment.appendChild(dateLi);
                     lastDateKey = dateKey;
                     existingDateKeys.add(dateKey); // Track that we're adding this separator
-                    console.log('DEBUG: Adding separator for', dateKey, 'before message', msg._id);
                 }
                 
                 // Append message after separator (if any)
@@ -807,8 +793,6 @@ socket.on('history', (messagesHistory) => {
             }
         });
         
-        console.log('DEBUG: Prepended', prependedCount, 'new messages to fragment');
-        
         // Only handle date separator boundary if new messages were actually added
         if (prependedCount > 0) {
             // Get the dateKey of the first message currently in the DOM (before prepending)
@@ -816,14 +800,12 @@ socket.on('history', (messagesHistory) => {
             let firstExistingDateKey = null;
             if (firstExistingBubble) {
                 firstExistingDateKey = getDateKey(firstExistingBubble.dataset.timestamp);
-                console.log('DEBUG: First existing message dateKey before prepend:', firstExistingDateKey);
             }
             
             // Get the dateKey of the FIRST message in the new batch
             let newBatchFirstDateKey = null;
             if (uniqueNewMessages.length > 0) {
                 newBatchFirstDateKey = getDateKey(uniqueNewMessages[0].timestamp);
-                console.log('DEBUG: First message in new batch dateKey:', newBatchFirstDateKey);
             }
             
             // If the first dateKey of the new batch matches the first dateKey of existing DOM,
@@ -1048,14 +1030,6 @@ input.addEventListener('input', () => {
     }
 });
 
-input.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        if (input.value.trim()) {
-            form.dispatchEvent(new Event('submit', { cancelable: true }));
-        }
-    }
-});
 
 // --- User Selection Functionality ---
 function setupUserSelection() {
@@ -1137,29 +1111,25 @@ socket.on('user selected', (success) => {
         const userTryingToSelect = currentUser;
         const otherUser = userTryingToSelect === 'i' ? 'x' : 'i';
         
-        // Offer to force release the user if it seems stuck
-        if (confirm(`User ${otherUser.toUpperCase()} appears to be taken. Would you like to try force releasing them? This can help if they closed the browser improperly.`)) {
-            socket.emit('force release user', otherUser);
-            
-            // Listen for the response
-            socket.once('force release user', (response) => {
-                if (response.success) {
-                    console.log(`Successfully force released user ${otherUser}`);
-                    // Try selecting again after a short delay
-                    setTimeout(() => {
-                        socket.emit('select user', userTryingToSelect);
-                    }, 500);
-                } else {
-                    console.log(`Failed to force release user ${otherUser}:`, response.reason);
-                    alert(`Could not release user ${otherUser.toUpperCase()}. Reason: ${response.reason || 'Unknown error'}`);
-                }
-            });
-        } else {
-            alert('This user is already taken. Please select the other user.');
-            clearStoredSelectedUser();
-            selectionScreen.style.display = 'flex';
-            chatContainer.style.display = 'none';
-        }
+        // Automatically try to force release the user if it seems stuck
+        socket.emit('force release user', otherUser);
+        
+        // Listen for the response
+        socket.once('force release user', (response) => {
+            if (response.success) {
+                console.log(`Successfully force released user ${otherUser}`);
+                // Try selecting again after a short delay
+                setTimeout(() => {
+                    socket.emit('select user', userTryingToSelect);
+                }, 500);
+            } else {
+                console.log(`Failed to force release user ${otherUser}:`, response.reason);
+                alert(`Could not release user ${otherUser.toUpperCase()}. Reason: ${response.reason || 'Unknown error'}`);
+                clearStoredSelectedUser();
+                selectionScreen.style.display = 'flex';
+                chatContainer.style.display = 'none';
+            }
+        });
     }
 });
 
@@ -1192,13 +1162,19 @@ socket.on('typing', (data) => {
     }
 });
 
+socket.on('history after', (newMessages) => {
+    if (!newMessages || newMessages.length === 0) return;
+    newMessages.forEach(msg => {
+        if (!document.querySelector(`li[data-id="${String(msg._id)}"]`)) {
+            renderMessage(msg);
+        }
+    });
+    lastActivityTs = Date.now();
+});
+
 // --- Enhanced Presence Update Handler ---
 socket.off('presence update'); // Remove any existing listener to prevent duplicates
 socket.on('presence update', (presenceData) => {
-    // Only log occasionally to reduce console spam
-    if (Math.random() < 0.1) {
-        console.log('Presence update received:', presenceData);
-    }
     latestPresenceData = presenceData;
     for (const uid in presenceData) {
         const p = presenceData[uid];
@@ -1262,7 +1238,25 @@ document.addEventListener('DOMContentLoaded', () => {
     startRefreshWatchdog();
     window.addEventListener('focus', () => { windowFocused = true; });
     window.addEventListener('blur', () => { windowFocused = false; });
-    document.addEventListener('visibilitychange', () => { updatePresenceDisplays(); });
+    document.addEventListener('visibilitychange', () => {
+        updatePresenceDisplays();
+        if (document.visibilityState === 'visible' && currentUser) {
+            // Reconnect kung na-suspend ang socket habang naka-background
+            if (socket.disconnected) {
+                socket.connect();
+            }
+            // Fetch any missed messages since last known message
+            const allBubbles = document.querySelectorAll('#messages li.message-bubble[data-timestamp]');
+            if (allBubbles.length > 0) {
+                const timestamps = Array.from(allBubbles).map(el => el.dataset.timestamp).filter(Boolean);
+                timestamps.sort();
+                const newestTimestamp = timestamps[timestamps.length - 1];
+                socket.emit('get history after', { after: newestTimestamp, limit: 50 });
+            } else {
+                socket.emit('get history', { limit: 20 });
+            }
+        }
+    });
 });
 
 function startRefreshWatchdog() {
@@ -1285,7 +1279,7 @@ function observeForRead(li, messageData) {
     const id = messageData._id;
     if (!id) return;
     if (li.dataset.readObserved === '1') return;
-    const io = new IntersectionObserver((entries) => {
+    const observer = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
             if (entry.isIntersecting && document.visibilityState === 'visible' && windowFocused) {
                 pendingReadIds.add(id);
@@ -1299,12 +1293,12 @@ function observeForRead(li, messageData) {
                         }
                     }, 250);
                 }
-                io.disconnect();
+                observer.disconnect();
                 li.dataset.readObserved = '1';
             }
         });
     }, { threshold: 0.3 });
-    io.observe(li);
+    observer.observe(li);
 }
 
 socket.on('reconnect', () => {
